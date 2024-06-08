@@ -1,4 +1,4 @@
-package tests
+package osha
 
 import (
 	"context"
@@ -26,8 +26,8 @@ const (
 
 // TestManager provides bootstrapping and a test service provider, useful for testing
 type TestManager struct {
-	// Logger for logging output messages during tests
-	Logger *slog.Logger
+	// logger for logging output messages during tests
+	logger *slog.Logger
 
 	// RPC client for running Hardhat's admin functions
 	hardhatRpcClient *rpc.Client
@@ -52,6 +52,9 @@ type TestManager struct {
 
 	// The Chain ID used by Hardhat
 	chainID uint64
+
+	// Path of the temporary directory used for testing
+	testDir string
 }
 
 // Creates a new TestManager instance
@@ -67,35 +70,35 @@ func NewTestManager() (*TestManager, error) {
 
 	// Create a temp folder
 	var err error
-	testingConfigDir, err := os.MkdirTemp("", "hd-tests-*")
+	testDir, err := os.MkdirTemp("", "osha-*")
 	if err != nil {
-		return nil, fmt.Errorf("error creating temp config dir: %v", err)
+		return nil, fmt.Errorf("error creating test dir: %v", err)
 	}
-	logger.Info("Created temp config dir", "dir", testingConfigDir)
+	logger.Info("Created test dir", "dir", testDir)
 
 	// Make the RPC client for the Hardhat instance (used for admin functions)
 	hardhatRpcClient, err := rpc.Dial(hardhatUrl)
 	if err != nil {
-		cleanup(testingConfigDir)
+		cleanup(testDir)
 		return nil, fmt.Errorf("error creating RPC client binding: %w", err)
 	}
 
 	// Create a Hardhat client
 	primaryEc, err := ethclient.Dial(hardhatUrl)
 	if err != nil {
-		cleanup(testingConfigDir)
+		cleanup(testDir)
 		return nil, fmt.Errorf("error creating primary eth client with URL [%s]: %v", hardhatUrl, err)
 	}
 
 	// Get the latest block and chain ID from Hardhat
 	latestBlockHeader, err := primaryEc.HeaderByNumber(context.Background(), nil)
 	if err != nil {
-		cleanup(testingConfigDir)
+		cleanup(testDir)
 		return nil, fmt.Errorf("error getting latest EL block: %v", err)
 	}
 	chainID, err := primaryEc.ChainID(context.Background())
 	if err != nil {
-		cleanup(testingConfigDir)
+		cleanup(testDir)
 		return nil, fmt.Errorf("error getting chain ID: %v", err)
 	}
 
@@ -113,13 +116,14 @@ func NewTestManager() (*TestManager, error) {
 	docker := docker.NewDockerClientMock()
 
 	m := &TestManager{
-		Logger:            logger,
+		logger:            logger,
 		hardhatRpcClient:  hardhatRpcClient,
 		executionClient:   primaryEc,
 		beaconMockManager: beaconMockManager,
 		beaconNode:        beaconNode,
 		docker:            docker,
 		chainID:           beaconCfg.ChainID,
+		testDir:           testDir,
 	}
 
 	// Create the baseline snapshot
@@ -140,17 +144,24 @@ func (m *TestManager) Fail(format string, args ...any) {
 	os.Exit(1)
 }
 
-// Cleans up the test environment, including the temporary folder to house any generated files
+// Cleans up the test environment, including the testing folder that houses any generated files
 func (m *TestManager) Cleanup() {
 	err := m.revertToSnapshot(m.baselineSnapshotID)
 	if err != nil {
-		m.Logger.Error("error reverting to baseline snapshot", "err", err)
+		m.logger.Error("error reverting to baseline snapshot", "err", err)
+	}
+	if m.testDir != "" {
+		cleanup(m.testDir)
 	}
 }
 
 // ===============
 // === Getters ===
 // ===============
+
+func (m *TestManager) GetLogger() *slog.Logger {
+	return m.logger
+}
 
 func (m *TestManager) GetHardhatRpcClient() *rpc.Client {
 	return m.hardhatRpcClient
@@ -174,6 +185,11 @@ func (m *TestManager) GetDockerClient() dclient.APIClient {
 
 func (m *TestManager) GetDockerCompose() docker.IDockerCompose {
 	return m.compose
+}
+
+// Get the path of the test directory - use this to store whatever files you need for testing.
+func (m *TestManager) GetTestDir() string {
+	return m.testDir
 }
 
 // ====================
@@ -316,10 +332,10 @@ func (m *TestManager) hardhat_increaseTime(seconds uint) error {
 	return nil
 }
 
-// Delete the test config dir
-func cleanup(testingConfigDir string) {
-	err := os.RemoveAll(testingConfigDir)
+// Delete the test dir
+func cleanup(testDir string) {
+	err := os.RemoveAll(testDir)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		fmt.Fprintf(os.Stderr, "error removing temp config dir [%s]: %v", testingConfigDir, err)
+		fmt.Fprintf(os.Stderr, "error removing test dir [%s]: %v", testDir, err)
 	}
 }
