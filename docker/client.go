@@ -90,6 +90,9 @@ func (d *DockerClientMock) ContainerRemove(ctx context.Context, containerID stri
 	delete(d.containers, containerID)
 
 	// Remove the container from any networks it was connected to
+	if container.NetworkSettings == nil {
+		return nil
+	}
 	for netName := range container.NetworkSettings.Networks {
 		netResource, exists := d.networks[netName]
 		if !exists {

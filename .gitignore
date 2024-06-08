@@ -23,3 +23,6 @@ go.work.sum
 
 # Hardhat artifacts
 hardhat/node_modules
+
+# Binaries
+beacon/beacon
