@@ -1,0 +1,39 @@
+services:
+  test:
+    image: mock/test:v0.0.1
+    user: dummy-user
+    container_name: dummyproj_test
+    restart: unless-stopped
+    stop_signal: SIGTERM
+    stop_grace_period: 5m
+    ports:
+      - "127.0.0.1:80:80/tcp"
+      - "0.0.0.0:81:81/tcp"
+      - "82:82/udp"
+    volumes:
+      - /var/lib/diff-folder:/diff-folder:ro
+      - /usr/share/same-folder:/usr/share/same-folder
+      - named-vol:/var/lib/named-vol
+    entrypoint:
+      - /usr/bin/dummy
+    command:
+      - arg1
+      - arg2
+    networks:
+      - net
+      - other_net
+    environment:
+      - VAR1=VALUE1
+      - VAR2=VALUE2
+    cap_drop:
+      - all
+    cap_add:
+      - dac_override
+    security_opt:
+      - no-new-privileges
+networks:
+  net:
+  other_net:
+    external: true
+volumes:
+  named-vol:
