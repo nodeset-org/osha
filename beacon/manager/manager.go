@@ -9,10 +9,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/nodeset-org/osha/beacon/db"
 	"github.com/rocket-pool/node-manager-core/beacon"
+	"github.com/rocket-pool/node-manager-core/beacon/client"
 )
 
 // Beacon mock manager
 type BeaconMockManager struct {
+	client.IBeaconApiProvider
+
 	database *db.Database
 	config   *db.Config
 
