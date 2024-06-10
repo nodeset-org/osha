@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	dclient "github.com/docker/docker/client"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/nodeset-org/osha/beacon/db"
@@ -179,11 +178,11 @@ func (m *TestManager) GetBeaconClient() beacon.IBeaconClient {
 	return m.beaconNode
 }
 
-func (m *TestManager) GetDockerClient() dclient.APIClient {
+func (m *TestManager) GetDockerClient() *docker.DockerClientMock {
 	return m.docker
 }
 
-func (m *TestManager) GetDockerCompose() docker.IDockerCompose {
+func (m *TestManager) GetDockerCompose() *docker.DockerComposeMock {
 	return m.compose
 }
 
