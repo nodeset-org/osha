@@ -10,7 +10,7 @@ require (
 	github.com/ethereum/go-ethereum v1.14.3
 	github.com/goccy/go-json v0.10.2
 	github.com/gorilla/mux v1.8.1
-	github.com/rocket-pool/node-manager-core v0.4.0
+	github.com/rocket-pool/node-manager-core v0.3.1-0.20240606201146-02cb18d7d44a
 	github.com/stretchr/testify v1.9.0
 	github.com/urfave/cli/v2 v2.27.1
 	gopkg.in/yaml.v3 v3.0.1
