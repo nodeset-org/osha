@@ -2,7 +2,6 @@ package osha
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,6 +13,7 @@ import (
 	"github.com/nodeset-org/osha/beacon/db"
 	"github.com/nodeset-org/osha/beacon/manager"
 	"github.com/nodeset-org/osha/docker"
+	"github.com/nodeset-org/osha/filesystem"
 	"github.com/rocket-pool/node-manager-core/beacon"
 	"github.com/rocket-pool/node-manager-core/beacon/client"
 	"github.com/rocket-pool/node-manager-core/eth"
@@ -50,8 +50,8 @@ type TestManager struct {
 	// The Chain ID used by Hardhat
 	chainID uint64
 
-	// Path of the temporary directory used for testing
-	testDir string
+	// Manager for the filesystem's test folder
+	fsManager *filesystem.FilesystemManager
 
 	// Map of which services were captured during a snapshot
 	snapshotServiceMap map[string]Service
@@ -68,37 +68,47 @@ func NewTestManager() (*TestManager, error) {
 	// Make a new logger
 	logger := slog.Default()
 
-	// Create a temp folder
-	var err error
-	testDir, err := os.MkdirTemp("", "osha-*")
+	// Make the FS manager
+	fsManager, err := filesystem.NewFilesystemManager(logger)
 	if err != nil {
-		return nil, fmt.Errorf("error creating test dir: %v", err)
+		return nil, fmt.Errorf("error creating FS manager: %w", err)
 	}
-	logger.Info("Created test dir", "dir", testDir)
 
 	// Make the RPC client for the Hardhat instance (used for admin functions)
 	hardhatRpcClient, err := rpc.Dial(hardhatUrl)
 	if err != nil {
-		cleanup(testDir)
+		err = fsManager.Close()
+		if err != nil {
+			logger.Error("error closing FS manager", "err", err)
+		}
 		return nil, fmt.Errorf("error creating RPC client binding: %w", err)
 	}
 
 	// Create a Hardhat client
 	primaryEc, err := ethclient.Dial(hardhatUrl)
 	if err != nil {
-		cleanup(testDir)
+		err = fsManager.Close()
+		if err != nil {
+			logger.Error("error closing FS manager", "err", err)
+		}
 		return nil, fmt.Errorf("error creating primary eth client with URL [%s]: %v", hardhatUrl, err)
 	}
 
 	// Get the latest block and chain ID from Hardhat
 	latestBlockHeader, err := primaryEc.HeaderByNumber(context.Background(), nil)
 	if err != nil {
-		cleanup(testDir)
+		err = fsManager.Close()
+		if err != nil {
+			logger.Error("error closing FS manager", "err", err)
+		}
 		return nil, fmt.Errorf("error getting latest EL block: %v", err)
 	}
 	chainID, err := primaryEc.ChainID(context.Background())
 	if err != nil {
-		cleanup(testDir)
+		err = fsManager.Close()
+		if err != nil {
+			logger.Error("error closing FS manager", "err", err)
+		}
 		return nil, fmt.Errorf("error getting chain ID: %v", err)
 	}
 
@@ -123,7 +133,7 @@ func NewTestManager() (*TestManager, error) {
 		beaconNode:         beaconNode,
 		docker:             docker,
 		chainID:            beaconCfg.ChainID,
-		testDir:            testDir,
+		fsManager:          fsManager,
 		snapshotServiceMap: map[string]Service{},
 	}
 
@@ -139,14 +149,12 @@ func NewTestManager() (*TestManager, error) {
 }
 
 // Cleans up the test environment, including the testing folder that houses any generated files
-func (m *TestManager) Cleanup() {
+func (m *TestManager) Close() error {
 	err := m.revertToSnapshot(m.baselineSnapshotID)
 	if err != nil {
-		m.logger.Error("error reverting to baseline snapshot", "err", err)
+		return fmt.Errorf("error reverting to baseline snapshot: %w", err)
 	}
-	if m.testDir != "" {
-		cleanup(m.testDir)
-	}
+	return m.fsManager.Close()
 }
 
 // ===============
@@ -179,7 +187,7 @@ func (m *TestManager) GetDockerMockManager() *docker.DockerMockManager {
 
 // Get the path of the test directory - use this to store whatever files you need for testing.
 func (m *TestManager) GetTestDir() string {
-	return m.testDir
+	return m.fsManager.GetTestDir()
 }
 
 // ====================
@@ -308,6 +316,14 @@ func (m *TestManager) takeSnapshot(services Service) (string, error) {
 		}
 	}
 
+	if services.Contains(Service_Filesystem) {
+		// Snapshot the filesystem
+		err := m.fsManager.TakeSnapshot(snapshotName)
+		if err != nil {
+			return "", fmt.Errorf("error creating filesystem snapshot: %w", err)
+		}
+	}
+
 	// Store the services that were captured
 	m.snapshotServiceMap[snapshotName] = services
 	return snapshotName, nil
@@ -341,6 +357,14 @@ func (m *TestManager) revertToSnapshot(snapshotID string) error {
 			return fmt.Errorf("error reverting Docker to snapshot %s: %w", snapshotID, err)
 		}
 	}
+
+	if services.Contains(Service_Filesystem) {
+		// Revert the filesystem
+		err := m.fsManager.RevertToSnapshot(snapshotID)
+		if err != nil {
+			return fmt.Errorf("error reverting the filesystem to snapshot %s: %w", snapshotID, err)
+		}
+	}
 	return nil
 }
 
@@ -360,12 +384,4 @@ func (m *TestManager) hardhat_increaseTime(seconds uint) error {
 		return fmt.Errorf("error increasing EL time: %w", err)
 	}
 	return nil
-}
-
-// Delete the test dir
-func cleanup(testDir string) {
-	err := os.RemoveAll(testDir)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		fmt.Fprintf(os.Stderr, "error removing test dir [%s]: %v", testDir, err)
-	}
 }

@@ -10,11 +10,11 @@ const (
 	// Represents the Docker client and compose services
 	Service_Docker
 
-	// Represents the underlying filesystem - NYI
-	//Service_Filesystem Service = "filesystem"
+	// Represents the underlying filesystem
+	Service_Filesystem
 
 	// Represents all of the services provided by OSHA
-	Service_All Service = Service_EthClients | Service_Docker
+	Service_All Service = Service_EthClients | Service_Docker | Service_Filesystem
 )
 
 // Check if a service value contains a specific service flag
