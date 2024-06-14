@@ -77,8 +77,8 @@ func NewTestManager() (*TestManager, error) {
 	// Make the RPC client for the Hardhat instance (used for admin functions)
 	hardhatRpcClient, err := rpc.Dial(hardhatUrl)
 	if err != nil {
-		err = fsManager.Close()
-		if err != nil {
+		err2 := fsManager.Close()
+		if err2 != nil {
 			logger.Error("error closing FS manager", "err", err)
 		}
 		return nil, fmt.Errorf("error creating RPC client binding: %w", err)
@@ -87,8 +87,8 @@ func NewTestManager() (*TestManager, error) {
 	// Create a Hardhat client
 	primaryEc, err := ethclient.Dial(hardhatUrl)
 	if err != nil {
-		err = fsManager.Close()
-		if err != nil {
+		err2 := fsManager.Close()
+		if err2 != nil {
 			logger.Error("error closing FS manager", "err", err)
 		}
 		return nil, fmt.Errorf("error creating primary eth client with URL [%s]: %v", hardhatUrl, err)
@@ -97,16 +97,16 @@ func NewTestManager() (*TestManager, error) {
 	// Get the latest block and chain ID from Hardhat
 	latestBlockHeader, err := primaryEc.HeaderByNumber(context.Background(), nil)
 	if err != nil {
-		err = fsManager.Close()
-		if err != nil {
+		err2 := fsManager.Close()
+		if err2 != nil {
 			logger.Error("error closing FS manager", "err", err)
 		}
 		return nil, fmt.Errorf("error getting latest EL block: %v", err)
 	}
 	chainID, err := primaryEc.ChainID(context.Background())
 	if err != nil {
-		err = fsManager.Close()
-		if err != nil {
+		err2 := fsManager.Close()
+		if err2 != nil {
 			logger.Error("error closing FS manager", "err", err)
 		}
 		return nil, fmt.Errorf("error getting chain ID: %v", err)

@@ -137,8 +137,8 @@ func copyDirectory(source string, target string) error {
 
 		// Directories will be traversed via Walk() later so just make the dir here
 		if info.IsDir() {
-			os.MkdirAll(targetPath, info.Mode())
-			return nil
+			err = os.MkdirAll(targetPath, info.Mode())
+			return err
 		}
 
 		// Irregular files aren't supported yet
