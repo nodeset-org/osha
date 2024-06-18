@@ -23,8 +23,8 @@ import (
 )
 
 // Generates or updates a network resource from a compose definition.
-func (d *DockerClientMock) generateNetwork(network compose.NetworkConfig, nameInYaml string, projectName string) error {
-	netResource, exists := d.networks[network.Name]
+func (d *DockerMockManager) generateNetwork(network compose.NetworkConfig, nameInYaml string, projectName string) error {
+	netResource, exists := d.state.networks[network.Name]
 	if exists {
 		// Update and return
 		netResource.EnableIPv6 = network.EnableIPv6
@@ -34,12 +34,12 @@ func (d *DockerClientMock) generateNetwork(network compose.NetworkConfig, nameIn
 	}
 
 	// Get the next available subnet
-	if len(d.availableSubnets) == 0 {
-		return fmt.Errorf("too many networks; Docker only allows 31 bridging networks and the mock only supports that")
+	if len(d.state.availableSubnets) == 0 {
+		return fmt.Errorf("too many networks")
 	}
-	subnet := d.availableSubnets[0]
-	d.availableSubnets = d.availableSubnets[1:]
-	d.usedSubnets[network.Name] = subnet
+	subnet := d.state.availableSubnets[0]
+	d.state.availableSubnets = d.state.availableSubnets[1:]
+	d.state.usedSubnets[network.Name] = subnet
 
 	netResource = &docker.NetworkResource{
 		Name:       network.Name,
@@ -74,14 +74,14 @@ func (d *DockerClientMock) generateNetwork(network compose.NetworkConfig, nameIn
 		},
 		Services: map[string]dnetwork.ServiceInfo{}, // Will be filled in later
 	}
-	d.networks[network.Name] = netResource
-	d.networkIndices[nameInYaml] = 2 // The first IP / MAC for the network starts at 2
+	d.state.networks[network.Name] = netResource
+	d.state.networkIndices[nameInYaml] = 2 // The first IP / MAC for the network starts at 2
 	return nil
 }
 
 // Generates or updates a volume from a compose definition.
-func (d *DockerClientMock) generateVolume(volume compose.VolumeConfig, nameInYaml string, projectName string) {
-	volumeImpl, exists := d.volumes[volume.Name]
+func (d *DockerMockManager) generateVolume(volume compose.VolumeConfig, nameInYaml string, projectName string) {
+	volumeImpl, exists := d.state.volumes[volume.Name]
 	if exists {
 		// Update and return
 		volumeImpl.Options = volume.DriverOpts
@@ -101,12 +101,12 @@ func (d *DockerClientMock) generateVolume(volume compose.VolumeConfig, nameInYam
 		Scope:      "local",
 		Options:    volume.DriverOpts,
 	}
-	d.volumes[volume.Name] = volumeImpl
+	d.state.volumes[volume.Name] = volumeImpl
 }
 
 // Generates a service (container) into the backing database from a compose definition.
 // If the service already exists, it will be replaced with a new one.
-func (d *DockerClientMock) generateService(service compose.ServiceConfig, projectNetworks compose.Networks, projectVolumes compose.Volumes) error {
+func (d *DockerMockManager) generateService(service compose.ServiceConfig, projectNetworks compose.Networks, projectVolumes compose.Volumes) error {
 	// Create a started stateImpl
 	stateImpl := containerimpl.NewState()
 	stateImpl.SetRunning(nil, nil, true)
@@ -138,7 +138,7 @@ func (d *DockerClientMock) generateService(service compose.ServiceConfig, projec
 
 		case dmount.TypeVolume:
 			projectVolume := projectVolumes[volume.Source]
-			volumeResource := d.volumes[projectVolume.Name]
+			volumeResource := d.state.volumes[projectVolume.Name]
 			containerMount := docker.MountPoint{
 				Type:        dmount.Type(volume.Type),
 				Name:        projectVolume.Name,
@@ -231,9 +231,9 @@ func (d *DockerClientMock) generateService(service compose.ServiceConfig, projec
 	for networkNameInYaml, networkConfig := range service.Networks {
 		// Get the corresponding network
 		projectNetwork := projectNetworks[networkNameInYaml]
-		netResource := d.networks[projectNetwork.Name]
-		subnet := d.usedSubnets[projectNetwork.Name]
-		indexInNetwork := d.networkIndices[networkNameInYaml]
+		netResource := d.state.networks[projectNetwork.Name]
+		subnet := d.state.usedSubnets[projectNetwork.Name]
+		indexInNetwork := d.state.networkIndices[networkNameInYaml]
 
 		// Set up the compose file config if it's not defined
 		if networkConfig == nil {
@@ -261,7 +261,7 @@ func (d *DockerClientMock) generateService(service compose.ServiceConfig, projec
 		networks[projectNetwork.Name] = network
 
 		// Increment the network index for the next service using it
-		d.networkIndices[networkNameInYaml] = indexInNetwork + 1
+		d.state.networkIndices[networkNameInYaml] = indexInNetwork + 1
 	}
 
 	// Create the container
@@ -493,11 +493,11 @@ func (d *DockerClientMock) generateService(service compose.ServiceConfig, projec
 		container.Config.StopTimeout = &timeout
 	}
 
-	d.containers[service.ContainerName] = container
+	d.state.containers[service.ContainerName] = container
 
 	// Add the container to the networks
 	for netName, network := range container.NetworkSettings.Networks {
-		netResource := d.networks[netName]
+		netResource := d.state.networks[netName]
 		netResource.Containers[container.ID] = docker.EndpointResource{
 			Name:        strings.TrimPrefix(container.Name, "/"),
 			EndpointID:  network.EndpointID,

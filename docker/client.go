@@ -10,50 +10,13 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/volume"
-	"github.com/docker/docker/client"
 	containerimpl "github.com/docker/docker/container"
 )
 
-type DockerClientMock struct {
-	client.APIClient
-	containers map[string]*types.ContainerJSON
-	volumes    map[string]*volume.Volume
-	networks   map[string]*types.NetworkResource
-
-	// Internal fields
-	availableSubnets []int
-	usedSubnets      map[string]int
-
-	// Used to create sequential IP / MAC addresses for services
-	networkIndices map[string]byte
-}
-
-func NewDockerClientMock() *DockerClientMock {
-	// Docker defaults to 31 available subnets for bridges: 172.17.0.0/16 through 172.31.0.0/16
-	availableSubnets := []int{}
-	for i := 17; i < 32; i++ {
-		availableSubnets = append(availableSubnets, i)
-	}
-
-	return &DockerClientMock{
-		containers: map[string]*types.ContainerJSON{},
-		volumes:    map[string]*volume.Volume{},
-		networks:   map[string]*types.NetworkResource{},
-
-		availableSubnets: availableSubnets,
-		usedSubnets:      map[string]int{},
-		networkIndices:   map[string]byte{},
-	}
-}
-
-// =====================
-// === API Functions ===
-// =====================
-
 // Returns information about a container.
-func (d *DockerClientMock) ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error) {
+func (d *DockerMockManager) ContainerInspect(ctx context.Context, containerID string) (types.ContainerJSON, error) {
 	// Find the container
-	container, exists := d.containers[containerID]
+	container, exists := d.state.containers[containerID]
 	if !exists {
 		//lint:ignore ST1005 This is what the actual Docker daemon returns
 		return types.ContainerJSON{}, fmt.Errorf("No such container: %s", containerID)
@@ -64,9 +27,9 @@ func (d *DockerClientMock) ContainerInspect(ctx context.Context, containerID str
 
 // Lists all running Docker containers (unless options.All is true, in which case lists all containers).
 // The other options are not implemented.
-func (d *DockerClientMock) ContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error) {
+func (d *DockerMockManager) ContainerList(ctx context.Context, options container.ListOptions) ([]types.Container, error) {
 	containers := []types.Container{}
-	for _, containerJson := range d.containers {
+	for _, containerJson := range d.state.containers {
 		if options.All || containerJson.State.Running {
 			container, err := convertContainerJsonToContainer(containerJson)
 			if err != nil {
@@ -80,21 +43,21 @@ func (d *DockerClientMock) ContainerList(ctx context.Context, options container.
 
 // Removes a container.
 // The opts are not implemented.
-func (d *DockerClientMock) ContainerRemove(ctx context.Context, containerID string, opts container.RemoveOptions) error {
+func (d *DockerMockManager) ContainerRemove(ctx context.Context, containerID string, opts container.RemoveOptions) error {
 	// Find the container
-	container, exists := d.containers[containerID]
+	container, exists := d.state.containers[containerID]
 	if !exists {
 		//lint:ignore ST1005 This is what the actual Docker daemon returns
 		return fmt.Errorf("No such container: %s", containerID)
 	}
-	delete(d.containers, containerID)
+	delete(d.state.containers, containerID)
 
 	// Remove the container from any networks it was connected to
 	if container.NetworkSettings == nil {
 		return nil
 	}
 	for netName := range container.NetworkSettings.Networks {
-		netResource, exists := d.networks[netName]
+		netResource, exists := d.state.networks[netName]
 		if !exists {
 			continue
 		}
@@ -105,15 +68,15 @@ func (d *DockerClientMock) ContainerRemove(ctx context.Context, containerID stri
 
 // Restarts a container.
 // The opts are not implemented.
-func (d *DockerClientMock) ContainerRestart(ctx context.Context, containerID string, opts container.StopOptions) error {
+func (d *DockerMockManager) ContainerRestart(ctx context.Context, containerID string, opts container.StopOptions) error {
 	return d.ContainerStart(ctx, containerID, container.StartOptions{})
 }
 
 // Starts a container.
 // The opts are not implemented.
-func (d *DockerClientMock) ContainerStart(ctx context.Context, containerID string, opts container.StartOptions) error {
+func (d *DockerMockManager) ContainerStart(ctx context.Context, containerID string, opts container.StartOptions) error {
 	// Find the container
-	container, exists := d.containers[containerID]
+	container, exists := d.state.containers[containerID]
 	if !exists {
 		//lint:ignore ST1005 This is what the actual Docker daemon returns
 		return fmt.Errorf("No such container: %s", containerID)
@@ -135,9 +98,9 @@ func (d *DockerClientMock) ContainerStart(ctx context.Context, containerID strin
 
 // Stops a container.
 // The opts are not implemented.
-func (d *DockerClientMock) ContainerStop(ctx context.Context, containerID string, options container.StopOptions) error {
+func (d *DockerMockManager) ContainerStop(ctx context.Context, containerID string, options container.StopOptions) error {
 	// Find the container
-	container, exists := d.containers[containerID]
+	container, exists := d.state.containers[containerID]
 	if !exists {
 		//lint:ignore ST1005 This is what the actual Docker daemon returns
 		return fmt.Errorf("No such container: %s", containerID)
@@ -163,28 +126,28 @@ func (d *DockerClientMock) ContainerStop(ctx context.Context, containerID string
 // Gets the current disk usage of each Docker resource.
 // These must be explicitly set before calling this with Mock_SetContainerDiskUsage() or Mock_SetVolumeDiskUsage().
 // options are not implemented; always returns container and volume info.
-func (d *DockerClientMock) DiskUsage(ctx context.Context, options types.DiskUsageOptions) (types.DiskUsage, error) {
+func (d *DockerMockManager) DiskUsage(ctx context.Context, options types.DiskUsageOptions) (types.DiskUsage, error) {
 	diskUsage := types.DiskUsage{
 		Containers: []*types.Container{},
 		Volumes:    []*volume.Volume{},
 	}
-	for _, container := range d.containers {
+	for _, container := range d.state.containers {
 		containerJson, err := convertContainerJsonToContainer(container)
 		if err != nil {
 			return types.DiskUsage{}, fmt.Errorf("error getting details for [%s]: %w", container.Name, err)
 		}
 		diskUsage.Containers = append(diskUsage.Containers, &containerJson)
 	}
-	for _, volume := range d.volumes {
+	for _, volume := range d.state.volumes {
 		diskUsage.Volumes = append(diskUsage.Volumes, volume)
 	}
 	return diskUsage, nil
 }
 
 // Deletes a network if not being used by existing containers.
-func (d *DockerClientMock) NetworkRemove(ctx context.Context, networkID string) error {
+func (d *DockerMockManager) NetworkRemove(ctx context.Context, networkID string) error {
 	// Find the network
-	network, exists := d.networks[networkID]
+	network, exists := d.state.networks[networkID]
 	if !exists {
 		//lint:ignore ST1005 This is what the actual Docker daemon returns
 		return fmt.Errorf("No such network: %s", networkID)
@@ -195,25 +158,25 @@ func (d *DockerClientMock) NetworkRemove(ctx context.Context, networkID string) 
 		return fmt.Errorf("network %s is in use still", networkID)
 	}
 
-	subnet, exists := d.usedSubnets[networkID]
+	subnet, exists := d.state.usedSubnets[networkID]
 	if exists {
-		d.availableSubnets = append(d.availableSubnets, subnet)
+		d.state.availableSubnets = append(d.state.availableSubnets, subnet)
 	}
-	delete(d.networks, networkID)
-	delete(d.usedSubnets, networkID)
+	delete(d.state.networks, networkID)
+	delete(d.state.usedSubnets, networkID)
 	return nil
 }
 
 // Deletes a volume.
 // Always works, force is not used.
-func (d *DockerClientMock) VolumeRemove(ctx context.Context, volumeID string, force bool) error {
+func (d *DockerMockManager) VolumeRemove(ctx context.Context, volumeID string, force bool) error {
 	// Find the volume
-	_, exists := d.volumes[volumeID]
+	_, exists := d.state.volumes[volumeID]
 	if !exists {
 		//lint:ignore ST1005 This is what the actual Docker daemon returns
 		return fmt.Errorf("No such volume: %s", volumeID)
 	}
-	delete(d.volumes, volumeID)
+	delete(d.state.volumes, volumeID)
 	return nil
 }
 
@@ -223,29 +186,29 @@ func (d *DockerClientMock) VolumeRemove(ctx context.Context, volumeID string, fo
 
 // Adds a container to the mock registry. Note that this does not add any new volumes the container references;
 // add those manually with Mock_AddVolume().
-func (d *DockerClientMock) Mock_AddContainer(info types.ContainerJSON) error {
-	_, exists := d.containers[info.Name]
+func (d *DockerMockManager) Mock_AddContainer(info types.ContainerJSON) error {
+	_, exists := d.state.containers[info.Name]
 	if exists {
 		return fmt.Errorf("container %s already exists", info.Name)
 	}
-	d.containers[info.Name] = &info
+	d.state.containers[info.Name] = &info
 	return nil
 }
 
 // Adds a volume to the mock registry.
-func (d *DockerClientMock) Mock_AddVolume(volume volume.Volume) error {
-	_, exists := d.volumes[volume.Name]
+func (d *DockerMockManager) Mock_AddVolume(volume volume.Volume) error {
+	_, exists := d.state.volumes[volume.Name]
 	if exists {
 		return fmt.Errorf("volume %s already exists", volume.Name)
 	}
-	d.volumes[volume.Name] = &volume
+	d.state.volumes[volume.Name] = &volume
 	return nil
 }
 
 // Sets a container's disk usage
-func (d *DockerClientMock) Mock_SetContainerDiskUsage(containerID string, sizeRootFs int64, sizeRw int64) error {
+func (d *DockerMockManager) Mock_SetContainerDiskUsage(containerID string, sizeRootFs int64, sizeRw int64) error {
 	// Find the container
-	container, exists := d.containers[containerID]
+	container, exists := d.state.containers[containerID]
 	if !exists {
 		return fmt.Errorf("no such container: %s", containerID)
 	}
@@ -255,9 +218,9 @@ func (d *DockerClientMock) Mock_SetContainerDiskUsage(containerID string, sizeRo
 }
 
 // Sets a container's disk usage
-func (d *DockerClientMock) Mock_SetVolumeDiskUsage(volumeID string, size int64) error {
+func (d *DockerMockManager) Mock_SetVolumeDiskUsage(volumeID string, size int64) error {
 	// Find the volume
-	volume, exists := d.volumes[volumeID]
+	volume, exists := d.state.volumes[volumeID]
 	if !exists {
 		return fmt.Errorf("no such volume: %s", volumeID)
 	}

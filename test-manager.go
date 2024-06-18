@@ -2,7 +2,6 @@ package osha
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,9 +9,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/google/uuid"
 	"github.com/nodeset-org/osha/beacon/db"
 	"github.com/nodeset-org/osha/beacon/manager"
 	"github.com/nodeset-org/osha/docker"
+	"github.com/nodeset-org/osha/filesystem"
 	"github.com/rocket-pool/node-manager-core/beacon"
 	"github.com/rocket-pool/node-manager-core/beacon/client"
 	"github.com/rocket-pool/node-manager-core/eth"
@@ -40,11 +41,8 @@ type TestManager struct {
 	// Beacon node
 	beaconNode beacon.IBeaconClient
 
-	// Docker mock for testing Docker controls
-	docker *docker.DockerClientMock
-
-	// Docker compose mock from testing compose functions
-	compose *docker.DockerComposeMock
+	// Docker mock for testing Docker controls and compose functions
+	docker *docker.DockerMockManager
 
 	// Snapshot ID from the baseline - the initial state of Hardhat prior to running any of the tests in this package
 	baselineSnapshotID string
@@ -52,8 +50,11 @@ type TestManager struct {
 	// The Chain ID used by Hardhat
 	chainID uint64
 
-	// Path of the temporary directory used for testing
-	testDir string
+	// Manager for the filesystem's test folder
+	fsManager *filesystem.FilesystemManager
+
+	// Map of which services were captured during a snapshot
+	snapshotServiceMap map[string]Service
 }
 
 // Creates a new TestManager instance
@@ -67,37 +68,47 @@ func NewTestManager() (*TestManager, error) {
 	// Make a new logger
 	logger := slog.Default()
 
-	// Create a temp folder
-	var err error
-	testDir, err := os.MkdirTemp("", "osha-*")
+	// Make the FS manager
+	fsManager, err := filesystem.NewFilesystemManager(logger)
 	if err != nil {
-		return nil, fmt.Errorf("error creating test dir: %v", err)
+		return nil, fmt.Errorf("error creating FS manager: %w", err)
 	}
-	logger.Info("Created test dir", "dir", testDir)
 
 	// Make the RPC client for the Hardhat instance (used for admin functions)
 	hardhatRpcClient, err := rpc.Dial(hardhatUrl)
 	if err != nil {
-		cleanup(testDir)
+		err2 := fsManager.Close()
+		if err2 != nil {
+			logger.Error("error closing FS manager", "err", err)
+		}
 		return nil, fmt.Errorf("error creating RPC client binding: %w", err)
 	}
 
 	// Create a Hardhat client
 	primaryEc, err := ethclient.Dial(hardhatUrl)
 	if err != nil {
-		cleanup(testDir)
+		err2 := fsManager.Close()
+		if err2 != nil {
+			logger.Error("error closing FS manager", "err", err)
+		}
 		return nil, fmt.Errorf("error creating primary eth client with URL [%s]: %v", hardhatUrl, err)
 	}
 
 	// Get the latest block and chain ID from Hardhat
 	latestBlockHeader, err := primaryEc.HeaderByNumber(context.Background(), nil)
 	if err != nil {
-		cleanup(testDir)
+		err2 := fsManager.Close()
+		if err2 != nil {
+			logger.Error("error closing FS manager", "err", err)
+		}
 		return nil, fmt.Errorf("error getting latest EL block: %v", err)
 	}
 	chainID, err := primaryEc.ChainID(context.Background())
 	if err != nil {
-		cleanup(testDir)
+		err2 := fsManager.Close()
+		if err2 != nil {
+			logger.Error("error closing FS manager", "err", err)
+		}
 		return nil, fmt.Errorf("error getting chain ID: %v", err)
 	}
 
@@ -112,21 +123,22 @@ func NewTestManager() (*TestManager, error) {
 	beaconNode := client.NewStandardClient(beaconMockManager)
 
 	// Make a Docker client mock
-	docker := docker.NewDockerClientMock()
+	docker := docker.NewDockerMockManager(logger)
 
 	m := &TestManager{
-		logger:            logger,
-		hardhatRpcClient:  hardhatRpcClient,
-		executionClient:   primaryEc,
-		beaconMockManager: beaconMockManager,
-		beaconNode:        beaconNode,
-		docker:            docker,
-		chainID:           beaconCfg.ChainID,
-		testDir:           testDir,
+		logger:             logger,
+		hardhatRpcClient:   hardhatRpcClient,
+		executionClient:    primaryEc,
+		beaconMockManager:  beaconMockManager,
+		beaconNode:         beaconNode,
+		docker:             docker,
+		chainID:            beaconCfg.ChainID,
+		fsManager:          fsManager,
+		snapshotServiceMap: map[string]Service{},
 	}
 
 	// Create the baseline snapshot
-	baselineSnapshotID, err := m.takeSnapshot()
+	baselineSnapshotID, err := m.takeSnapshot(Service_All)
 	if err != nil {
 		return nil, fmt.Errorf("error creating baseline snapshot: %w", err)
 	}
@@ -136,22 +148,13 @@ func NewTestManager() (*TestManager, error) {
 	return m, nil
 }
 
-// Prints an error message to stderr and exits the program with an error code
-func (m *TestManager) Fail(format string, args ...any) {
-	fmt.Fprintf(os.Stderr, format, args...)
-	m.Cleanup()
-	os.Exit(1)
-}
-
 // Cleans up the test environment, including the testing folder that houses any generated files
-func (m *TestManager) Cleanup() {
+func (m *TestManager) Close() error {
 	err := m.revertToSnapshot(m.baselineSnapshotID)
 	if err != nil {
-		m.logger.Error("error reverting to baseline snapshot", "err", err)
+		return fmt.Errorf("error reverting to baseline snapshot: %w", err)
 	}
-	if m.testDir != "" {
-		cleanup(m.testDir)
-	}
+	return m.fsManager.Close()
 }
 
 // ===============
@@ -178,24 +181,20 @@ func (m *TestManager) GetBeaconClient() beacon.IBeaconClient {
 	return m.beaconNode
 }
 
-func (m *TestManager) GetDockerClient() *docker.DockerClientMock {
+func (m *TestManager) GetDockerMockManager() *docker.DockerMockManager {
 	return m.docker
-}
-
-func (m *TestManager) GetDockerCompose() *docker.DockerComposeMock {
-	return m.compose
 }
 
 // Get the path of the test directory - use this to store whatever files you need for testing.
 func (m *TestManager) GetTestDir() string {
-	return m.testDir
+	return m.fsManager.GetTestDir()
 }
 
 // ====================
 // === Snapshotting ===
 // ====================
 
-// Reverts the EC and BN to the baseline snapshot
+// Reverts the services to the baseline snapshot
 func (m *TestManager) RevertToBaseline() error {
 	err := m.revertToSnapshot(m.baselineSnapshotID)
 	if err != nil {
@@ -203,7 +202,7 @@ func (m *TestManager) RevertToBaseline() error {
 	}
 
 	// Regenerate the baseline snapshot since Hardhat can't revert to it multiple times
-	baselineSnapshotID, err := m.takeSnapshot()
+	baselineSnapshotID, err := m.takeSnapshot(Service_All)
 	if err != nil {
 		return fmt.Errorf("error creating baseline snapshot: %w", err)
 	}
@@ -211,12 +210,12 @@ func (m *TestManager) RevertToBaseline() error {
 	return nil
 }
 
-// Takes a snapshot of the EC and BN states
-func (m *TestManager) CreateCustomSnapshot() (string, error) {
-	return m.takeSnapshot()
+// Takes a snapshot of the service states
+func (m *TestManager) CreateCustomSnapshot(services Service) (string, error) {
+	return m.takeSnapshot(services)
 }
 
-// Revert the EC and BN to a snapshot state
+// Revert the services to a snapshot state
 func (m *TestManager) RevertToCustomSnapshot(snapshotID string) error {
 	return m.revertToSnapshot(snapshotID)
 }
@@ -283,32 +282,88 @@ func (m *TestManager) SetBeaconHeadSlot(slot uint64) {
 // === Internal Methods ===
 // ========================
 
-// Takes a snapshot of the EC and BN states
-func (m *TestManager) takeSnapshot() (string, error) {
-	// Snapshot the EC
+// Takes a snapshot of the service states
+func (m *TestManager) takeSnapshot(services Service) (string, error) {
 	var snapshotName string
-	err := m.hardhatRpcClient.Call(&snapshotName, "evm_snapshot")
-	if err != nil {
-		return "", fmt.Errorf("error creating snapshot: %w", err)
+	if services.Contains(Service_EthClients) {
+		// Snapshot the EC
+		err := m.hardhatRpcClient.Call(&snapshotName, "evm_snapshot")
+		if err != nil {
+			return "", fmt.Errorf("error creating snapshot: %w", err)
+		}
+
+		// Snapshot the BN
+		m.beaconMockManager.TakeSnapshot(snapshotName)
 	}
 
-	// Snapshot the BN
-	m.beaconMockManager.TakeSnapshot(snapshotName)
+	// Normally the snapshot name comes from Hardhat but if the EC wasn't snapshotted, make a random one
+	if snapshotName == "" {
+		for {
+			candidate := uuid.New().String()
+			_, exists := m.snapshotServiceMap[candidate]
+			if !exists {
+				snapshotName = candidate
+				break
+			}
+		}
+	}
+
+	if services.Contains(Service_Docker) {
+		// Snapshot Docker
+		err := m.docker.TakeSnapshot(snapshotName)
+		if err != nil {
+			return "", fmt.Errorf("error creating Docker snapshot: %w", err)
+		}
+	}
+
+	if services.Contains(Service_Filesystem) {
+		// Snapshot the filesystem
+		err := m.fsManager.TakeSnapshot(snapshotName)
+		if err != nil {
+			return "", fmt.Errorf("error creating filesystem snapshot: %w", err)
+		}
+	}
+
+	// Store the services that were captured
+	m.snapshotServiceMap[snapshotName] = services
 	return snapshotName, nil
 }
 
-// Revert the EC and BN to a snapshot state
+// Revert the services to a snapshot state
 func (m *TestManager) revertToSnapshot(snapshotID string) error {
-	// Revert the EC
-	err := m.hardhatRpcClient.Call(nil, "evm_revert", snapshotID)
-	if err != nil {
-		return fmt.Errorf("error reverting Hardhat to snapshot %s: %w", snapshotID, err)
+	services, exists := m.snapshotServiceMap[snapshotID]
+	if !exists {
+		return fmt.Errorf("snapshot with ID [%s] does not exist", snapshotID)
 	}
 
-	// Revert the BN
-	err = m.beaconMockManager.RevertToSnapshot(snapshotID)
-	if err != nil {
-		return fmt.Errorf("error reverting the BN to snapshot %s: %w", snapshotID, err)
+	if services.Contains(Service_EthClients) {
+		// Revert the EC
+		err := m.hardhatRpcClient.Call(nil, "evm_revert", snapshotID)
+		if err != nil {
+			return fmt.Errorf("error reverting Hardhat to snapshot %s: %w", snapshotID, err)
+		}
+
+		// Revert the BN
+		err = m.beaconMockManager.RevertToSnapshot(snapshotID)
+		if err != nil {
+			return fmt.Errorf("error reverting the BN to snapshot %s: %w", snapshotID, err)
+		}
+	}
+
+	if services.Contains(Service_Docker) {
+		// Revert Docker
+		err := m.docker.RevertToSnapshot(snapshotID)
+		if err != nil {
+			return fmt.Errorf("error reverting Docker to snapshot %s: %w", snapshotID, err)
+		}
+	}
+
+	if services.Contains(Service_Filesystem) {
+		// Revert the filesystem
+		err := m.fsManager.RevertToSnapshot(snapshotID)
+		if err != nil {
+			return fmt.Errorf("error reverting the filesystem to snapshot %s: %w", snapshotID, err)
+		}
 	}
 	return nil
 }
@@ -329,12 +384,4 @@ func (m *TestManager) hardhat_increaseTime(seconds uint) error {
 		return fmt.Errorf("error increasing EL time: %w", err)
 	}
 	return nil
-}
-
-// Delete the test dir
-func cleanup(testDir string) {
-	err := os.RemoveAll(testDir)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		fmt.Fprintf(os.Stderr, "error removing test dir [%s]: %v", testDir, err)
-	}
 }

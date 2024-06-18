@@ -13,7 +13,7 @@ import (
 
 func TestContainerCycle(t *testing.T) {
 	// Create a new client
-	d := NewDockerClientMock()
+	d := NewDockerMockManager(nil)
 
 	// Make a simple service
 	service := createTestService()
@@ -21,7 +21,7 @@ func TestContainerCycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error adding container: %s", err)
 	}
-	require.Contains(t, d.containers, service.Name)
+	require.Contains(t, d.state.containers, service.Name)
 	t.Log("Added container")
 
 	// Start the service
@@ -29,7 +29,7 @@ func TestContainerCycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error starting container: %s", err)
 	}
-	require.True(t, d.containers[service.Name].State.Running)
+	require.True(t, d.state.containers[service.Name].State.Running)
 	t.Log("Started container")
 
 	// Stop the service
@@ -37,7 +37,7 @@ func TestContainerCycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error stopping container: %s", err)
 	}
-	require.False(t, d.containers[service.Name].State.Running)
+	require.False(t, d.state.containers[service.Name].State.Running)
 	t.Log("Stopped container")
 
 	// Restart the service
@@ -45,7 +45,7 @@ func TestContainerCycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error restarting container: %s", err)
 	}
-	require.True(t, d.containers[service.Name].State.Running)
+	require.True(t, d.state.containers[service.Name].State.Running)
 	t.Log("Restarted container")
 
 	// Remove the service
@@ -53,7 +53,7 @@ func TestContainerCycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error removing container: %s", err)
 	}
-	require.NotContains(t, d.containers, service.Name)
+	require.NotContains(t, d.state.containers, service.Name)
 	t.Log("Removed container")
 }
 

@@ -24,21 +24,20 @@ func TestComposeUp(t *testing.T) {
 	netName := fmt.Sprintf("%s_net", projectName)
 	volumeName := fmt.Sprintf("%s_named-vol", projectName)
 	containerName := fmt.Sprintf("%s_%s", projectName, goodContainerName)
-	client := NewDockerClientMock()
-	compose := NewDockerComposeMock(client)
+	d := NewDockerMockManager(nil)
 
 	// Run an up command
-	err := compose.Up(projectName, []string{goodComposeFile})
+	err := d.Up(projectName, []string{goodComposeFile})
 	if err != nil {
 		t.Fatalf("error running compose up: %s", err)
 	}
 	t.Log("Compose up complete")
 
 	// Verify the network is created
-	require.Len(t, client.networks, 2)
-	require.Contains(t, client.networks, netName)
+	require.Len(t, d.state.networks, 2)
+	require.Contains(t, d.state.networks, netName)
 
-	network := client.networks[netName]
+	network := d.state.networks[netName]
 	require.Equal(t, netName, network.Name)
 	require.Equal(t, "172.18.0.0/16", network.IPAM.Config[0].Subnet)
 	require.Equal(t, "172.18.0.1", network.IPAM.Config[0].Gateway)
@@ -46,14 +45,14 @@ func TestComposeUp(t *testing.T) {
 	t.Log("Network created properly")
 
 	// Verify the volume is created
-	require.Len(t, client.volumes, 1)
-	require.Contains(t, client.volumes, volumeName)
+	require.Len(t, d.state.volumes, 1)
+	require.Contains(t, d.state.volumes, volumeName)
 	t.Log("Volume created properly")
 
 	// Verify the service is created
-	require.Len(t, client.containers, 1)
-	require.Contains(t, client.containers, containerName)
-	container := client.containers[containerName]
+	require.Len(t, d.state.containers, 1)
+	require.Contains(t, d.state.containers, containerName)
+	container := d.state.containers[containerName]
 
 	// Top-level properties
 	require.NotEmpty(t, container.ID)
@@ -136,7 +135,7 @@ func TestComposeUp(t *testing.T) {
 		"other_net": {
 			Aliases:     []string{containerName, goodContainerName},
 			MacAddress:  "02:42:ac:11:00:02",
-			NetworkID:   client.networks["other_net"].ID,
+			NetworkID:   d.state.networks["other_net"].ID,
 			EndpointID:  container.NetworkSettings.Networks["other_net"].EndpointID,
 			Gateway:     "172.17.0.1",
 			IPAddress:   "172.17.0.2",
@@ -177,62 +176,60 @@ func TestComposeUp(t *testing.T) {
 func TestComposeStop(t *testing.T) {
 	// Create a new client
 	containerName := fmt.Sprintf("%s_%s", projectName, goodContainerName)
-	client := NewDockerClientMock()
-	compose := NewDockerComposeMock(client)
+	d := NewDockerMockManager(nil)
 
 	// Run an up command
-	err := compose.Up(projectName, []string{goodComposeFile})
+	err := d.Up(projectName, []string{goodComposeFile})
 	if err != nil {
 		t.Fatalf("error running compose up: %s", err)
 	}
 	t.Log("Compose up complete")
 
 	// Run a stop command
-	err = compose.Stop(projectName, []string{goodComposeFile})
+	err = d.Stop(projectName, []string{goodComposeFile})
 	if err != nil {
 		t.Fatalf("error running compose stop: %s", err)
 	}
 	t.Log("Compose stop complete")
 
 	// Make sure the container is alive but stopped
-	require.Contains(t, client.containers, containerName)
-	container := client.containers[containerName]
+	require.Contains(t, d.state.containers, containerName)
+	container := d.state.containers[containerName]
 	require.False(t, container.State.Running)
 	t.Log("Container stopped")
 }
 
 func TestComposeDown(t *testing.T) {
-	// Create a new client
-	client := NewDockerClientMock()
-	compose := NewDockerComposeMock(client)
+	// Create a new d
+	d := NewDockerMockManager(nil)
 
 	// Run an up command
-	err := compose.Up(projectName, []string{goodComposeFile})
+	err := d.Up(projectName, []string{goodComposeFile})
 	if err != nil {
 		t.Fatalf("error running compose up: %s", err)
 	}
 	t.Log("Compose up complete")
 
 	// Make sure the subnets are not available
-	require.NotContains(t, client.availableSubnets, 17)
-	require.NotContains(t, client.availableSubnets, 18)
+	require.NotContains(t, d.state.availableSubnets, 17)
+	require.NotContains(t, d.state.availableSubnets, 18)
 	t.Log("Subnets are not in available pool")
 
 	// Run a stop command
-	err = compose.Down(projectName, []string{goodComposeFile})
+	err = d.Down(projectName, []string{goodComposeFile})
 	if err != nil {
 		t.Fatalf("error running compose down: %s", err)
 	}
 	t.Log("Compose down complete")
 
 	// Make sure the container is alive but stopped
-	require.Empty(t, client.containers)
-	require.Empty(t, client.volumes)
-	require.Empty(t, client.networks)
+	require.Empty(t, d.state.containers)
+	require.Empty(t, d.state.volumes)
+	require.Empty(t, d.state.networks)
 	t.Log("All resources removed")
 
 	// Make sure the subnets are back
-	require.Contains(t, client.availableSubnets, 17)
-	require.Contains(t, client.availableSubnets, 18)
+	require.Contains(t, d.state.availableSubnets, 17)
+	require.Contains(t, d.state.availableSubnets, 18)
 	t.Log("Subnets returned to available pool")
 }
