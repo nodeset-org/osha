@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -119,4 +120,29 @@ func (m *BeaconMockManager) GetValidators(ids []string) ([]*db.Validator, error)
 		validators = append(validators, validator)
 	}
 	return validators, nil
+}
+
+func (m *BeaconMockManager) Beacon_FinalityCheckpoints(ctx context.Context, stateId string) (client.FinalityCheckpointsResponse, error) {
+	response := client.FinalityCheckpointsResponse{}
+	response.Data.PreviousJustified.Epoch = client.Uinteger(m.database.GetNextExecutionBlockIndex())
+	response.Data.CurrentJustified.Epoch = client.Uinteger(m.database.GetNextExecutionBlockIndex())
+	response.Data.Finalized.Epoch = client.Uinteger(m.database.GetNextExecutionBlockIndex())
+	return response, nil
+}
+
+func (m *BeaconMockManager) Config_Spec(ctx context.Context) (client.Eth2ConfigResponse, error) {
+	response := client.Eth2ConfigResponse{}
+	response.Data.SecondsPerSlot = client.Uinteger(m.config.SecondsPerSlot)
+	response.Data.SlotsPerEpoch = client.Uinteger(m.config.SlotsPerEpoch)
+	response.Data.EpochsPerSyncCommitteePeriod = client.Uinteger(m.config.EpochsPerSyncCommitteePeriod)
+	response.Data.CapellaForkVersion = m.config.CapellaForkVersion
+	return response, nil
+}
+
+func (m *BeaconMockManager) Beacon_Genesis(ctx context.Context) (client.GenesisResponse, error) {
+	response := client.GenesisResponse{}
+	response.Data.GenesisTime = client.Uinteger(m.config.SecondsPerSlot)
+	response.Data.GenesisForkVersion = m.config.CapellaForkVersion
+	response.Data.GenesisValidatorsRoot = m.config.GenesisValidatorsRoot
+	return response, nil
 }
