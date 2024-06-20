@@ -81,14 +81,6 @@ func (db *Database) GetValidatorByPubkey(pubkey beacon.ValidatorPubkey) *Validat
 	return db.validatorPubkeyMap[pubkey]
 }
 
-// Get the next execution block index for a given slot.
-func (db *Database) GetNextExecutionBlockIndex() uint64 {
-	db.lock.Lock()
-	defer db.lock.Unlock()
-
-	return db.nextExecutionBlockIndex
-}
-
 // Get all validators
 func (db *Database) GetAllValidators() []*Validator {
 	db.lock.Lock()
