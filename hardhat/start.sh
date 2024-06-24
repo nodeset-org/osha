@@ -32,4 +32,12 @@ nvm use 20 || fail "Error setting node version to v20"
 npm ci || fail "Error provisioning Hardhat"
 
 # Run Hardhat
-npx hardhat node --port 8545 || fail "Error running Hardhat"
+npx hardhat node --port 8545  &
+HARDHAT_NODE_PID=$!
+sleep 5 # Give the Hardhat node some time to start
+
+# Deploy contracts
+npx hardhat run scripts/deploy.js --network localhost || fail "Error deploying contracts"
+
+# Wait for the Hardhat node process to end (optional)
+wait $HARDHAT_NODE_PID
