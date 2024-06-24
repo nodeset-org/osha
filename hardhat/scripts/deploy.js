@@ -8,10 +8,15 @@ async function main() {
     const balance = await deployer.getBalance();
     console.log("Account balance:", balance.toString());
 
-    const Contract = await ethers.getContractFactory("Token");
-    const contract = await Contract.deploy(1000000);
+    const Token = await ethers.getContractFactory("Token");
+    const token = await Token.deploy(1000000);
 
-    console.log("Token deployed at:", contract.address);
+    console.log("Token deployed at:", token.address);
+
+    const SplitsWarehouseMock = await ethers.getContractFactory("SplitsWarehouseMock");
+    const splitsWarehouseMock = await SplitsWarehouseMock.deploy();
+
+    console.log("SplitsWarehouse deployed at:", splitsWarehouseMock.address);
 }
 
 main()
