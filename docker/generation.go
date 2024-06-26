@@ -27,7 +27,9 @@ func (d *DockerMockManager) generateNetwork(network compose.NetworkConfig, nameI
 	netResource, exists := d.state.networks[network.Name]
 	if exists {
 		// Update and return
-		netResource.EnableIPv6 = network.EnableIPv6
+		if network.EnableIPv6 != nil {
+			netResource.EnableIPv6 = *network.EnableIPv6
+		}
 		netResource.Internal = network.Internal
 		netResource.Attachable = network.Attachable
 		return nil
@@ -42,12 +44,11 @@ func (d *DockerMockManager) generateNetwork(network compose.NetworkConfig, nameI
 	d.state.usedSubnets[network.Name] = subnet
 
 	netResource = &docker.NetworkResource{
-		Name:       network.Name,
-		ID:         createRandomID(32),
-		Created:    time.Now(),
-		Scope:      "local",
-		Driver:     "bridge",
-		EnableIPv6: network.EnableIPv6,
+		Name:    network.Name,
+		ID:      createRandomID(32),
+		Created: time.Now(),
+		Scope:   "local",
+		Driver:  "bridge",
 		IPAM: dnetwork.IPAM{
 			Driver:  "default",
 			Options: nil,
@@ -73,6 +74,9 @@ func (d *DockerMockManager) generateNetwork(network compose.NetworkConfig, nameI
 			"com.docker.compose.version": "0.0.1", // Fake compose version
 		},
 		Services: map[string]dnetwork.ServiceInfo{}, // Will be filled in later
+	}
+	if network.EnableIPv6 != nil {
+		netResource.EnableIPv6 = *network.EnableIPv6
 	}
 	d.state.networks[network.Name] = netResource
 	d.state.networkIndices[nameInYaml] = 2 // The first IP / MAC for the network starts at 2
@@ -109,7 +113,7 @@ func (d *DockerMockManager) generateVolume(volume compose.VolumeConfig, nameInYa
 func (d *DockerMockManager) generateService(service compose.ServiceConfig, projectNetworks compose.Networks, projectVolumes compose.Volumes) error {
 	// Create a started stateImpl
 	stateImpl := containerimpl.NewState()
-	stateImpl.SetRunning(nil, nil, true)
+	stateImpl.SetRunning(nil, nil, time.Now())
 	state := getContainerStateFromState(stateImpl)
 
 	// Create the bind list
