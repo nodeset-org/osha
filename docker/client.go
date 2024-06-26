@@ -89,7 +89,7 @@ func (d *DockerMockManager) ContainerStart(ctx context.Context, containerID stri
 	}
 
 	// Stop the container
-	state.SetRunning(nil, nil, true)
+	state.SetRunning(nil, nil, time.Now())
 
 	// Update the state
 	*container.State = getContainerStateFromState(state)
@@ -277,9 +277,11 @@ func convertContainerJsonToContainer(containerJson *types.ContainerJSON) (types.
 		State:      state.StateString(),
 		Status:     state.String(),
 		HostConfig: struct {
-			NetworkMode string "json:\",omitempty\""
+			NetworkMode string            "json:\",omitempty\""
+			Annotations map[string]string "json:\",omitempty\""
 		}{
 			NetworkMode: string(containerJson.HostConfig.NetworkMode),
+			Annotations: map[string]string{},
 		},
 		Mounts: containerJson.Mounts,
 		NetworkSettings: &types.SummaryNetworkSettings{
