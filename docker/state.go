@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/goccy/go-json"
 )
@@ -13,7 +14,7 @@ type state struct {
 	// Mock database fields
 	containers map[string]*types.ContainerJSON
 	volumes    map[string]*volume.Volume
-	networks   map[string]*types.NetworkResource
+	networks   map[string]*network.Inspect
 
 	// Internal fields
 	availableSubnets []int
@@ -37,7 +38,7 @@ func newState() *state {
 	return &state{
 		containers:       map[string]*types.ContainerJSON{},
 		volumes:          map[string]*volume.Volume{},
-		networks:         map[string]*types.NetworkResource{},
+		networks:         map[string]*network.Inspect{},
 		availableSubnets: availableSubnets,
 		usedSubnets:      map[string]int{},
 		networkIndices:   map[string]byte{},
@@ -94,7 +95,7 @@ func (s *state) Clone() (*state, error) {
 		}
 
 		// Deserialize into a clone
-		var cloneNetwork types.NetworkResource
+		var cloneNetwork network.Inspect
 		err = json.Unmarshal(marshalled, &cloneNetwork)
 		if err != nil {
 			return nil, fmt.Errorf("error unmarshalling network [%s]: %w", name, err)

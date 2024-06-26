@@ -43,7 +43,7 @@ func (d *DockerMockManager) generateNetwork(network compose.NetworkConfig, nameI
 	d.state.availableSubnets = d.state.availableSubnets[1:]
 	d.state.usedSubnets[network.Name] = subnet
 
-	netResource = &docker.NetworkResource{
+	netResource = &dnetwork.Inspect{
 		Name:    network.Name,
 		ID:      createRandomID(32),
 		Created: time.Now(),
@@ -66,7 +66,7 @@ func (d *DockerMockManager) generateNetwork(network compose.NetworkConfig, nameI
 			Network: "",
 		},
 		ConfigOnly: false,
-		Containers: map[string]docker.EndpointResource{},
+		Containers: map[string]dnetwork.EndpointResource{},
 		Options:    map[string]string{},
 		Labels: map[string]string{
 			"com.docker.compose.network": nameInYaml,
@@ -502,7 +502,7 @@ func (d *DockerMockManager) generateService(service compose.ServiceConfig, proje
 	// Add the container to the networks
 	for netName, network := range container.NetworkSettings.Networks {
 		netResource := d.state.networks[netName]
-		netResource.Containers[container.ID] = docker.EndpointResource{
+		netResource.Containers[container.ID] = dnetwork.EndpointResource{
 			Name:        strings.TrimPrefix(container.Name, "/"),
 			EndpointID:  network.EndpointID,
 			MacAddress:  network.MacAddress,
