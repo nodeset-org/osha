@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -119,4 +120,27 @@ func (m *BeaconMockManager) GetValidators(ids []string) ([]*db.Validator, error)
 		validators = append(validators, validator)
 	}
 	return validators, nil
+}
+
+func (m *BeaconMockManager) Beacon_FinalityCheckpoints(ctx context.Context, stateId string) (client.FinalityCheckpointsResponse, error) {
+	response := client.FinalityCheckpointsResponse{}
+	return response, nil
+}
+
+func (m *BeaconMockManager) Config_Spec(ctx context.Context) (client.Eth2ConfigResponse, error) {
+	response := client.Eth2ConfigResponse{}
+	response.Data.SecondsPerSlot = client.Uinteger(m.config.SecondsPerSlot)
+	response.Data.SlotsPerEpoch = client.Uinteger(m.config.SlotsPerEpoch)
+	response.Data.CapellaForkVersion = m.config.CapellaForkVersion
+	return response, nil
+}
+
+func (m *BeaconMockManager) Beacon_VoluntaryExits_Post(ctx context.Context, exitRequest client.VoluntaryExitRequest) error {
+	return nil
+}
+
+func (m *BeaconMockManager) Beacon_Genesis(ctx context.Context) (client.GenesisResponse, error) {
+	response := client.GenesisResponse{}
+	response.Data.GenesisValidatorsRoot = make([]byte, 32)
+	return response, nil
 }
