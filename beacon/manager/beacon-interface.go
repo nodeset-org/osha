@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/rocket-pool/node-manager-core/beacon/client"
+	"github.com/rocket-pool/node-manager-core/utils"
 )
 
 func (m *BeaconMockManager) Beacon_Validators(ctx context.Context, stateId string, ids []string) (client.ValidatorsResponse, error) {
@@ -27,7 +28,7 @@ func (m *BeaconMockManager) Beacon_Validators(ctx context.Context, stateId strin
 func (m *BeaconMockManager) Config_DepositContract(ctx context.Context) (client.Eth2DepositContractResponse, error) {
 	response := client.Eth2DepositContractResponse{}
 	response.Data.Address = m.config.DepositContract
-	response.Data.ChainID = client.Uinteger(m.config.ChainID)
+	response.Data.ChainID = utils.Uinteger(m.config.ChainID)
 	return response, nil
 }
 
@@ -39,7 +40,7 @@ func (m *BeaconMockManager) Node_Syncing(ctx context.Context) (client.SyncStatus
 	// Write the response
 	response := client.SyncStatusResponse{}
 	response.Data.IsSyncing = (currentSlot < highestSlot)
-	response.Data.HeadSlot = client.Uinteger(highestSlot)
-	response.Data.SyncDistance = client.Uinteger(highestSlot - currentSlot)
+	response.Data.HeadSlot = utils.Uinteger(highestSlot)
+	response.Data.SyncDistance = utils.Uinteger(highestSlot - currentSlot)
 	return response, nil
 }
