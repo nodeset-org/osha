@@ -116,6 +116,9 @@ func (m *BeaconMockManager) GetValidators(ids []string) ([]*db.Validator, error)
 		if err != nil {
 			return nil, err
 		}
+		if validator == nil {
+			continue
+		}
 		validators = append(validators, validator)
 	}
 	return validators, nil
