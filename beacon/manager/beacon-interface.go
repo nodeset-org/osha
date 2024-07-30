@@ -7,6 +7,14 @@ import (
 	"github.com/rocket-pool/node-manager-core/utils"
 )
 
+func (m *BeaconMockManager) Beacon_Genesis(ctx context.Context) (client.GenesisResponse, error) {
+	response := client.GenesisResponse{}
+	response.Data.GenesisTime = utils.Uinteger(m.config.GenesisTime.Unix())
+	response.Data.GenesisValidatorsRoot = m.config.GenesisValidatorsRoot
+	response.Data.GenesisForkVersion = m.config.GenesisForkVersion
+	return response, nil
+}
+
 func (m *BeaconMockManager) Beacon_Validators(ctx context.Context, stateId string, ids []string) (client.ValidatorsResponse, error) {
 	// Get the validators
 	validators, err := m.GetValidators(ids)
@@ -29,6 +37,15 @@ func (m *BeaconMockManager) Config_DepositContract(ctx context.Context) (client.
 	response := client.Eth2DepositContractResponse{}
 	response.Data.Address = m.config.DepositContract
 	response.Data.ChainID = utils.Uinteger(m.config.ChainID)
+	return response, nil
+}
+
+func (m *BeaconMockManager) Config_Spec(ctx context.Context) (client.Eth2ConfigResponse, error) {
+	response := client.Eth2ConfigResponse{}
+	response.Data.SecondsPerSlot = utils.Uinteger(m.config.SecondsPerSlot)
+	response.Data.SlotsPerEpoch = utils.Uinteger(m.config.SlotsPerEpoch)
+	response.Data.EpochsPerSyncCommitteePeriod = utils.Uinteger(m.config.EpochsPerSyncCommitteePeriod)
+	response.Data.CapellaForkVersion = m.config.CapellaForkVersion
 	return response, nil
 }
 

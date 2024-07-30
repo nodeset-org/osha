@@ -10,6 +10,9 @@ const (
 	ValidatorRouteTemplate  string = "v1/beacon/states/%s/validators/%s"
 	ValidatorRoute          string = "v1/beacon/states/{state_id}/validators/{validator_id}"
 	SyncingRoute            string = "v1/node/syncing"
+	DepositContractRoute    string = "v1/config/deposit_contract"
+	ConfigSpecRoute         string = "v1/config/spec"
+	BeaconGenesisRoute      string = "v1/beacon/genesis"
 
 	// Admin routes
 	AddValidatorRoute   string = "add-validator"

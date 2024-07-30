@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -63,31 +61,15 @@ func main() {
 		logger := slog.Default()
 
 		// Load the config file if specified
-		config := db.NewDefaultConfig()
+		var config *db.Config
 		configFile := c.String(configFlag.Name)
-		if configFile != "" {
-			// Make sure the file exists
-			_, err := os.Stat(configFile)
-			if errors.Is(err, os.ErrNotExist) {
-				fmt.Fprintf(os.Stderr, "Config file [%s] doesn't exist %v", configFile, err)
-				os.Exit(1)
-			}
+		if configFile == "" {
+			config = db.NewDefaultConfig()
+		} else {
+			var err error
+			config, err = db.LoadFromFile(configFile)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error reading config file: %v", err)
-				os.Exit(1)
-			}
-
-			// Read the file
-			bytes, err := os.ReadFile(configFile)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error reading config file: %v", err)
-				os.Exit(1)
-			}
-
-			// Unmarshal it
-			err = json.Unmarshal(bytes, &config)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error unmarshalling config file: %v", err)
+				fmt.Fprintf(os.Stderr, "Error loading config file: %v", err)
 				os.Exit(1)
 			}
 		}
