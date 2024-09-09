@@ -7,6 +7,15 @@ import (
 	"github.com/rocket-pool/node-manager-core/utils"
 )
 
+// Temp until finality is implemented
+func (m *BeaconMockManager) Beacon_FinalityCheckpoints(ctx context.Context, stateId string) (client.FinalityCheckpointsResponse, error) {
+	response := client.FinalityCheckpointsResponse{}
+	response.Data.Finalized.Epoch = utils.Uinteger(m.database.GetCurrentSlot())
+	response.Data.CurrentJustified.Epoch = utils.Uinteger(m.database.GetCurrentSlot())
+	response.Data.PreviousJustified.Epoch = utils.Uinteger(m.database.GetCurrentSlot())
+	return response, nil
+}
+
 func (m *BeaconMockManager) Beacon_Genesis(ctx context.Context) (client.GenesisResponse, error) {
 	response := client.GenesisResponse{}
 	response.Data.GenesisTime = utils.Uinteger(m.config.GenesisTime.Unix())
