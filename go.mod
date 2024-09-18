@@ -15,7 +15,7 @@ require (
 	github.com/goccy/go-json v0.10.3
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
-	github.com/rocket-pool/node-manager-core v0.5.2-0.20240918185909-415c5fb7e3be
+	github.com/rocket-pool/node-manager-core v0.5.2-0.20240918224929-a9cee1201bee
 	github.com/stretchr/testify v1.9.0
 	github.com/tyler-smith/go-bip39 v1.1.0
 	github.com/urfave/cli/v2 v2.27.2
