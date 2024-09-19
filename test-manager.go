@@ -278,6 +278,24 @@ func (m *TestManager) SetBeaconHeadSlot(slot uint64) {
 	m.beaconMockManager.SetHighestSlot(slot)
 }
 
+// Toggle automining where each TX will automatically be mine into its own block
+func (m *TestManager) ToggleAutoMine(enabled bool) error {
+	err := m.hardhatRpcClient.Call(nil, "evm_setAutomine", enabled)
+	if err != nil {
+		return fmt.Errorf("error toggling automine: %w", err)
+	}
+	return nil
+}
+
+// Set the interval for interval mining mode
+func (m *TestManager) SetMiningInterval(interval uint) error {
+	err := m.hardhatRpcClient.Call(nil, "evm_setIntervalMining", interval)
+	if err != nil {
+		return fmt.Errorf("error setting interval mining: %w", err)
+	}
+	return nil
+}
+
 // ========================
 // === Internal Methods ===
 // ========================

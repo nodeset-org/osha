@@ -1,9 +1,16 @@
 package db
 
 import (
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/goccy/go-json"
+	"github.com/rocket-pool/node-manager-core/utils"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -23,32 +30,32 @@ type Config struct {
 	// ==============================
 
 	// Basic settings
-	ChainID                      uint64
-	SecondsPerSlot               uint64
-	SlotsPerEpoch                uint64
-	EpochsPerSyncCommitteePeriod uint64
-	DepositContract              common.Address
+	ChainID                      uint64         `json:"chainID" yaml:"chainID"`
+	SecondsPerSlot               uint64         `json:"secondsPerSlot" yaml:"secondsPerSlot"`
+	SlotsPerEpoch                uint64         `json:"slotsPerEpoch" yaml:"slotsPerEpoch"`
+	EpochsPerSyncCommitteePeriod uint64         `json:"epochsPerSyncCommitteePeriod" yaml:"epochsPerSyncCommitteePeriod"`
+	DepositContract              common.Address `json:"depositContract" yaml:"depositContract"`
 
 	// Genesis info
-	GenesisTime           time.Time
-	GenesisForkVersion    []byte
-	GenesisValidatorsRoot []byte
+	GenesisTime           time.Time       `json:"genesisTime,omitempty" yaml:"genesisTime,omitempty"`
+	GenesisForkVersion    utils.ByteArray `json:"genesisForkVersion" yaml:"genesisForkVersion"`
+	GenesisValidatorsRoot utils.ByteArray `json:"genesisValidatorsRoot" yaml:"genesisValidatorsRoot"`
 
 	// Altair info
-	AltairForkVersion []byte
-	AltairForkEpoch   uint64
+	AltairForkVersion utils.ByteArray `json:"altairForkVersion" yaml:"altairForkVersion"`
+	AltairForkEpoch   uint64          `json:"altairForkEpoch" yaml:"altairForkEpoch"`
 
 	// Bellatrix info
-	BellatrixForkVersion []byte
-	BellatrixForkEpoch   uint64
+	BellatrixForkVersion utils.ByteArray `json:"bellatrixForkVersion" yaml:"bellatrixForkVersion"`
+	BellatrixForkEpoch   uint64          `json:"bellatrixForkEpoch" yaml:"bellatrixForkEpoch"`
 
 	// Capella info
-	CapellaForkVersion []byte
-	CapellaForkEpoch   uint64
+	CapellaForkVersion utils.ByteArray `json:"capellaForkVersion" yaml:"capellaForkVersion"`
+	CapellaForkEpoch   uint64          `json:"capellaForkEpoch" yaml:"capellaForkEpoch"`
 
 	// Deneb info
-	DenebForkVersion []byte
-	DenebForkEpoch   uint64
+	DenebForkVersion utils.ByteArray `json:"denebForkVersion" yaml:"denebForkVersion"`
+	DenebForkEpoch   uint64          `json:"denebForkEpoch" yaml:"denebForkEpoch"`
 
 	// ==============================
 	// === Mock-specific settings ===
@@ -66,9 +73,9 @@ func NewDefaultConfig() *Config {
 		SecondsPerSlot:               12,
 		SlotsPerEpoch:                32,
 		EpochsPerSyncCommitteePeriod: 256,
-		GenesisTime:                  time.Now(),
+		GenesisTime:                  time.Now().Truncate(time.Second),
 		GenesisForkVersion:           common.FromHex("0x90de5e70"),
-		GenesisValidatorsRoot:        []byte{0x00},
+		GenesisValidatorsRoot:        common.FromHex("0x90de5e70615a7f7115e2b6aac319c03529df8242ae705fba9df39b79c59fa8b0"), // Almost the same as Holesky
 		AltairForkVersion:            common.FromHex("0x90de5e71"),
 		AltairForkEpoch:              0,
 		BellatrixForkVersion:         common.FromHex("0x90de5e72"),
@@ -79,6 +86,40 @@ func NewDefaultConfig() *Config {
 		DenebForkEpoch:               0,
 	}
 	return defaultConfig
+}
+
+// Creates a new config instance from a file
+func LoadFromFile(path string) (*Config, error) {
+	// Make sure the file exists
+	_, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("config file [%s] does not exist", path)
+	}
+
+	// Read the file
+	bytes, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("error reading config file [%s]: %w", path, err)
+	}
+
+	// Unmarshal the config
+	var config Config
+	switch filepath.Ext(path) {
+	case ".json":
+		err = json.Unmarshal(bytes, &config)
+	case ".yaml", ".yml":
+		err = yaml.Unmarshal(bytes, &config)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling config file [%s]: %w", path, err)
+	}
+
+	// Update fields
+	if config.GenesisTime.IsZero() {
+		config.GenesisTime = time.Now().Truncate(time.Second)
+	}
+
+	return &config, nil
 }
 
 // Clones a config into a new instance

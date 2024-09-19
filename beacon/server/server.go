@@ -114,6 +114,30 @@ func (s *BeaconMockServer) registerApiRoutes(apiRouter *mux.Router) {
 			handleInvalidMethod(s.logger, w)
 		}
 	})
+	apiRouter.HandleFunc("/"+api.DepositContractRoute, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.getDepositContract(w, r)
+		default:
+			handleInvalidMethod(s.logger, w)
+		}
+	})
+	apiRouter.HandleFunc("/"+api.BeaconGenesisRoute, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.getBeaconGenesis(w, r)
+		default:
+			handleInvalidMethod(s.logger, w)
+		}
+	})
+	apiRouter.HandleFunc("/"+api.ConfigSpecRoute, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.getConfigSpec(w, r)
+		default:
+			handleInvalidMethod(s.logger, w)
+		}
+	})
 }
 
 // Admin routes
