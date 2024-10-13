@@ -13,15 +13,17 @@ func (s *BeaconMockServer) getValidator(w http.ResponseWriter, r *http.Request) 
 	// Get the request vars
 	_ = s.processApiRequest(w, r, nil)
 	vars := mux.Vars(r)
-	state, exists := vars[api.StateID]
-	if !exists {
-		handleInputError(s.logger, w, fmt.Errorf("missing state ID"))
-		return
-	}
-	if state != "head" {
-		handleInputError(s.logger, w, fmt.Errorf("unsupported state ID [%s], only 'head' is supported", state))
-		return
-	}
+	/*
+		state, exists := vars[api.StateID]
+		if !exists {
+			handleInputError(s.logger, w, fmt.Errorf("missing state ID"))
+			return
+		}
+		if state != "head" {
+			handleInputError(s.logger, w, fmt.Errorf("unsupported state ID [%s], only 'head' is supported", state))
+			return
+		}
+	*/
 
 	id, exists := vars[api.ValidatorID]
 	if !exists {

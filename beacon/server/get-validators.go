@@ -26,10 +26,12 @@ func (s *BeaconMockServer) getValidators(w http.ResponseWriter, r *http.Request)
 		handleInputError(s.logger, w, fmt.Errorf("missing state ID"))
 		return
 	}
-	if state != "head" {
-		handleInputError(s.logger, w, fmt.Errorf("unsupported state ID [%s], only 'head' is supported", state))
-		return
-	}
+	/*
+		if state != "head" {
+			handleInputError(s.logger, w, fmt.Errorf("unsupported state ID [%s], only 'head' is supported", state))
+			return
+		}
+	*/
 
 	var ids []string
 	switch r.Method {
