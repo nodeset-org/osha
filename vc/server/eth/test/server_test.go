@@ -6,16 +6,10 @@ import (
 	"os"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/nodeset-org/osha/vc/db"
 	"github.com/nodeset-org/osha/vc/manager"
 	"github.com/nodeset-org/osha/vc/server"
-)
-
-const (
-	// The timeout for all requests
-	timeout time.Duration = 5 * time.Second
 )
 
 // Various singleton variables used for testing

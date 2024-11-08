@@ -71,11 +71,7 @@ func (s *KeyManagerServer) setKeystores(w http.ResponseWriter, r *http.Request) 
 	// Write the data
 	db := s.manager.GetDatabase()
 
-	data, err := db.AddValidators(keystores, body.Passwords, slashingProtection)
-	if err != nil {
-		common.HandleServerError(w, s.logger, err)
-		return
-	}
+	data := db.AddValidators(keystores, body.Passwords, slashingProtection)
 	common.HandleSuccess(w, s.logger, data, nil)
 }
 

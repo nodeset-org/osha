@@ -144,7 +144,7 @@ func (db *KeyManagerDatabase) SetJwtSecret(jwtSecret string) {
 }
 
 // Add validators to the database
-func (db *KeyManagerDatabase) AddValidators(keystores []*beacon.ValidatorKeystore, passwords []string, slashingProtection *beacon.SlashingProtectionData) ([]keymanager.ImportKeystoreData, error) {
+func (db *KeyManagerDatabase) AddValidators(keystores []*beacon.ValidatorKeystore, passwords []string, slashingProtection *beacon.SlashingProtectionData) []keymanager.ImportKeystoreData {
 	results := make([]keymanager.ImportKeystoreData, len(keystores))
 
 	for i, ks := range keystores {
@@ -234,7 +234,7 @@ func (db *KeyManagerDatabase) AddValidators(keystores []*beacon.ValidatorKeystor
 		}
 	}
 
-	return results, nil
+	return results
 }
 
 // Get the info for all validators
