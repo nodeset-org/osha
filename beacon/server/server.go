@@ -95,6 +95,11 @@ func (s *BeaconMockServer) GetPort() uint16 {
 	return s.port
 }
 
+// Get the underlying manager
+func (s *BeaconMockServer) GetManager() *manager.BeaconMockManager {
+	return s.manager
+}
+
 // API routes
 func (s *BeaconMockServer) registerApiRoutes(apiRouter *mux.Router) {
 	apiRouter.HandleFunc("/"+api.ValidatorsRoute, s.getValidators)

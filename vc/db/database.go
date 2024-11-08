@@ -94,9 +94,7 @@ func (db *KeyManagerDatabase) Clone() *KeyManagerDatabase {
 			cloneInfo.SlashingProtection = &beacon.SlashingProtectionData{
 				Metadata: info.SlashingProtection.Metadata,
 			}
-			for _, data := range info.SlashingProtection.Data {
-				cloneInfo.SlashingProtection.Data = append(clone.keys[pubkey].SlashingProtection.Data, data)
-			}
+			cloneInfo.SlashingProtection.Data = append(cloneInfo.SlashingProtection.Data, info.SlashingProtection.Data...)
 		}
 		clone.keys[pubkey] = cloneInfo
 	}

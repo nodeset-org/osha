@@ -5,24 +5,62 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/google/uuid"
-	"github.com/nodeset-org/osha/beacon/db"
-	"github.com/nodeset-org/osha/beacon/manager"
+	beacondb "github.com/nodeset-org/osha/beacon/db"
+	bnmanager "github.com/nodeset-org/osha/beacon/manager"
+	bnserver "github.com/nodeset-org/osha/beacon/server"
 	"github.com/nodeset-org/osha/docker"
 	"github.com/nodeset-org/osha/filesystem"
+	vcdb "github.com/nodeset-org/osha/vc/db"
+	vcmanager "github.com/nodeset-org/osha/vc/manager"
+	vcserver "github.com/nodeset-org/osha/vc/server"
 	"github.com/rocket-pool/node-manager-core/beacon"
 	"github.com/rocket-pool/node-manager-core/beacon/client"
 	"github.com/rocket-pool/node-manager-core/eth"
+	"github.com/rocket-pool/node-manager-core/log"
+	"github.com/rocket-pool/node-manager-core/node/validator/keymanager"
 )
 
 const (
 	// The environment variable for the locally running Hardhat instance
 	HardhatEnvVar string = "HARDHAT_URL"
 )
+
+type TestManagerOptions struct {
+	// The URL of the locally running Hardhat instance
+	HardhatUrl *string
+
+	// The logger for logging output messages during tests
+	Logger *slog.Logger
+
+	// The Beacon Client configuration
+	BeaconConfig *beacondb.Config
+
+	// The hostname to run the Beacon Node with
+	BeaconHostname *string
+
+	// The port to run the Beacon Node with
+	BeaconPort *uint16
+
+	// The hostname to run the VC Key Manager with
+	KeyManagerHostname *string
+
+	// The port to run the VC Key Manager with
+	KeyManagerPort *uint16
+
+	// Options for the VC Key Manager server
+	KeyManagerOptions *vcdb.KeyManagerDatabaseOptions
+
+	// Options for the key manager client
+	KeyManagerClientOptions *keymanager.StandardKeyManagerClientOptions
+}
 
 // TestManager provides bootstrapping and a test service provider, useful for testing
 type TestManager struct {
@@ -35,11 +73,23 @@ type TestManager struct {
 	// Execution client for Hardhat's ETH API
 	executionClient eth.IExecutionClient
 
-	// Beacon mock manager for running BN admin functions
-	beaconMockManager *manager.BeaconMockManager
+	// Beacon mock server for running BN admin functions
+	beaconMockServer *bnserver.BeaconMockServer
 
 	// Beacon node
 	beaconNode beacon.IBeaconClient
+
+	// BN Wait group for graceful shutdown
+	bnWg *sync.WaitGroup
+
+	// VC mock server for testing the VC key manager API
+	vcMockServer *vcserver.VcMockServer
+
+	// Key manager client
+	keyManagerClient keymanager.IKeyManagerClient
+
+	// VC Wait group for graceful shutdown
+	vcWg *sync.WaitGroup
 
 	// Docker mock for testing Docker controls and compose functions
 	docker *docker.DockerMockManager
@@ -58,15 +108,55 @@ type TestManager struct {
 }
 
 // Creates a new TestManager instance
-func NewTestManager() (*TestManager, error) {
-	// Make sure the Hardhat URL
-	hardhatUrl, exists := os.LookupEnv(HardhatEnvVar)
-	if !exists {
-		return nil, fmt.Errorf("%s env var not set", HardhatEnvVar)
+func NewTestManager(opts *TestManagerOptions) (*TestManager, error) {
+	// Set up the options
+	if opts == nil {
+		opts = &TestManagerOptions{}
+	}
+	if opts.HardhatUrl == nil {
+		hardhatUrl, exists := os.LookupEnv(HardhatEnvVar)
+		if !exists {
+			return nil, fmt.Errorf("%s env var not set", HardhatEnvVar)
+		}
+		opts.HardhatUrl = &hardhatUrl
+	}
+	if opts.Logger == nil {
+		opts.Logger = slog.Default()
+	}
+	if opts.BeaconConfig == nil {
+		opts.BeaconConfig = beacondb.NewDefaultConfig()
+	}
+	if opts.BeaconHostname == nil {
+		hostname := "localhost"
+		opts.BeaconHostname = &hostname
+	}
+	if opts.BeaconPort == nil {
+		port := uint16(5052)
+		opts.BeaconPort = &port
+	}
+	if opts.KeyManagerHostname == nil {
+		hostname := "localhost"
+		opts.KeyManagerHostname = &hostname
+	}
+	if opts.KeyManagerPort == nil {
+		port := uint16(5062)
+		opts.KeyManagerPort = &port
+	}
+	if opts.KeyManagerOptions == nil {
+		graffiti := vcdb.DefaultGraffiti
+		root := common.BytesToHash(opts.BeaconConfig.GenesisValidatorsRoot)
+		jwt := vcdb.DefaultJwtSecret
+		opts.KeyManagerOptions = &vcdb.KeyManagerDatabaseOptions{
+			DefaultFeeRecipient:   &vcdb.DefaultFeeRecipient,
+			DefaultGraffiti:       &graffiti,
+			GenesisValidatorsRoot: &root,
+			JwtSecret:             &jwt,
+		}
 	}
 
-	// Make a new logger
-	logger := slog.Default()
+	// Load the options
+	hardhatUrl := *opts.HardhatUrl
+	logger := opts.Logger
 
 	// Make the FS manager
 	fsManager, err := filesystem.NewFilesystemManager(logger)
@@ -113,14 +203,62 @@ func NewTestManager() (*TestManager, error) {
 	}
 
 	// Create the Beacon config based on the Hardhat values
-	beaconCfg := db.NewDefaultConfig()
+	beaconCfg := opts.BeaconConfig
 	beaconCfg.FirstExecutionBlockIndex = latestBlockHeader.Number.Uint64()
 	beaconCfg.ChainID = chainID.Uint64()
 	beaconCfg.GenesisTime = time.Unix(int64(latestBlockHeader.Time), 0)
 
 	// Make the Beacon client manager
-	beaconMockManager := manager.NewBeaconMockManager(logger, beaconCfg)
-	beaconNode := client.NewStandardClient(beaconMockManager)
+	beaconMockServer, err := bnserver.NewBeaconMockServer(logger, *opts.BeaconHostname, *opts.BeaconPort, beaconCfg)
+	if err != nil {
+		err2 := fsManager.Close()
+		if err2 != nil {
+			logger.Error("error closing FS manager", "err", err)
+		}
+		return nil, fmt.Errorf("error creating Beacon mock server: %w", err)
+	}
+	bnWg := &sync.WaitGroup{}
+	beaconMockServer.Start(bnWg)
+	beaconNode := client.NewStandardClient(
+		client.NewBeaconHttpProvider(
+			fmt.Sprintf("http://%s:%d", *opts.BeaconHostname, *opts.BeaconPort), time.Second*30,
+		),
+	)
+
+	// Make the JWT file for the key manager client
+	kmJwtSecretFile := filepath.Join(fsManager.GetTestDir(), "km_jwt_secret")
+	err = os.WriteFile(kmJwtSecretFile, []byte(*opts.KeyManagerOptions.JwtSecret), 0644)
+	if err != nil {
+		err2 := fsManager.Close()
+		if err2 != nil {
+			logger.Error("error closing FS manager", "err", err)
+		}
+		return nil, fmt.Errorf("error writing Key Manager JWT secret file: %w", err)
+	}
+
+	// Make the VC mock server
+	vcMockServer, err := vcserver.NewVcMockServer(logger, *opts.KeyManagerHostname, *opts.KeyManagerPort, *opts.KeyManagerOptions)
+	if err != nil {
+		err2 := fsManager.Close()
+		if err2 != nil {
+			logger.Error("error closing FS manager", "err", err)
+		}
+		return nil, fmt.Errorf("error creating VC mock server: %w", err)
+	}
+	vcWg := &sync.WaitGroup{}
+	vcMockServer.Start(vcWg)
+	keyManagerClient, err := keymanager.NewStandardKeyManagerClient(
+		fmt.Sprintf("http://%s:%d", *opts.KeyManagerHostname, *opts.KeyManagerPort),
+		kmJwtSecretFile,
+		opts.KeyManagerClientOptions,
+	)
+	if err != nil {
+		err2 := fsManager.Close()
+		if err2 != nil {
+			logger.Error("error closing FS manager", "err", err)
+		}
+		return nil, fmt.Errorf("error creating Key Manager client: %w", err)
+	}
 
 	// Make a Docker client mock
 	docker := docker.NewDockerMockManager(logger)
@@ -129,8 +267,12 @@ func NewTestManager() (*TestManager, error) {
 		logger:             logger,
 		hardhatRpcClient:   hardhatRpcClient,
 		executionClient:    primaryEc,
-		beaconMockManager:  beaconMockManager,
+		beaconMockServer:   beaconMockServer,
 		beaconNode:         beaconNode,
+		bnWg:               bnWg,
+		vcMockServer:       vcMockServer,
+		keyManagerClient:   keyManagerClient,
+		vcWg:               vcWg,
 		docker:             docker,
 		chainID:            beaconCfg.ChainID,
 		fsManager:          fsManager,
@@ -150,10 +292,34 @@ func NewTestManager() (*TestManager, error) {
 
 // Cleans up the test environment, including the testing folder that houses any generated files
 func (m *TestManager) Close() error {
+	// Revert to the baseline snapshot
 	err := m.revertToSnapshot(m.baselineSnapshotID)
 	if err != nil {
 		return fmt.Errorf("error reverting to baseline snapshot: %w", err)
 	}
+
+	// Shut down the BN
+	logger := m.GetLogger()
+	if m.bnWg != nil {
+		err = m.beaconMockServer.Stop()
+		if err != nil {
+			logger.Warn("WARNING: nodeset server mock didn't shutdown cleanly", log.Err(err))
+		}
+		m.bnWg.Wait()
+		logger.Info("Stopped Beacon Node mock server")
+	}
+
+	// Shut down the VC
+	if m.vcWg != nil {
+		err = m.vcMockServer.Stop()
+		if err != nil {
+			logger.Warn("WARNING: VC mock server didn't shutdown cleanly", log.Err(err))
+		}
+		m.vcWg.Wait()
+		logger.Info("Stopped Validator Client mock server")
+	}
+
+	// Close the filesystem manager
 	return m.fsManager.Close()
 }
 
@@ -173,12 +339,20 @@ func (m *TestManager) GetExecutionClient() eth.IExecutionClient {
 	return m.executionClient
 }
 
-func (m *TestManager) GetBeaconMockManager() *manager.BeaconMockManager {
-	return m.beaconMockManager
+func (m *TestManager) GetBeaconMockManager() *bnmanager.BeaconMockManager {
+	return m.beaconMockServer.GetManager()
 }
 
 func (m *TestManager) GetBeaconClient() beacon.IBeaconClient {
 	return m.beaconNode
+}
+
+func (m *TestManager) GetVcMockManager() *vcmanager.VcMockManager {
+	return m.vcMockServer.GetManager()
+}
+
+func (m *TestManager) GetKeyManagerClient() keymanager.IKeyManagerClient {
+	return m.keyManagerClient
 }
 
 func (m *TestManager) GetDockerMockManager() *docker.DockerMockManager {
@@ -233,14 +407,15 @@ func (m *TestManager) CommitBlock() error {
 	}
 
 	// Increase time by the slot duration to prep for the next slot
-	secondsPerSlot := uint(m.beaconMockManager.GetConfig().SecondsPerSlot)
+	mgr := m.beaconMockServer.GetManager()
+	secondsPerSlot := uint(mgr.GetConfig().SecondsPerSlot)
 	err = m.hardhat_increaseTime(secondsPerSlot)
 	if err != nil {
 		return err
 	}
 
 	// Commit the block in the BN
-	m.beaconMockManager.CommitBlock(true)
+	mgr.CommitBlock(true)
 	return nil
 }
 
@@ -259,12 +434,13 @@ func (m *TestManager) AdvanceSlots(slots uint, includeBlocks bool) error {
 	}
 
 	// Commit slots without blocks
+	mgr := m.beaconMockServer.GetManager()
 	for i := uint(0); i < slots; i++ {
-		m.beaconMockManager.CommitBlock(false)
+		mgr.CommitBlock(false)
 	}
 
 	// Advance the time in Hardhat
-	secondsPerSlot := uint(m.beaconMockManager.GetConfig().SecondsPerSlot)
+	secondsPerSlot := uint(mgr.GetConfig().SecondsPerSlot)
 	err := m.hardhatRpcClient.Call(nil, "evm_increaseTime", secondsPerSlot*slots)
 	if err != nil {
 		return fmt.Errorf("error advancing time on EL: %w", err)
@@ -275,7 +451,7 @@ func (m *TestManager) AdvanceSlots(slots uint, includeBlocks bool) error {
 // Set the highest slot (the head slot) of the Beacon chain, while keeping the local chain head on the client the same.
 // Useful for simulating an unsynced client.
 func (m *TestManager) SetBeaconHeadSlot(slot uint64) {
-	m.beaconMockManager.SetHighestSlot(slot)
+	m.beaconMockServer.GetManager().SetHighestSlot(slot)
 }
 
 // Toggle automining where each TX will automatically be mine into its own block
@@ -311,7 +487,10 @@ func (m *TestManager) takeSnapshot(services Service) (string, error) {
 		}
 
 		// Snapshot the BN
-		m.beaconMockManager.TakeSnapshot(snapshotName)
+		m.beaconMockServer.GetManager().TakeSnapshot(snapshotName)
+
+		// Snapshot the VC
+		m.vcMockServer.GetManager().TakeSnapshot(snapshotName)
 	}
 
 	// Normally the snapshot name comes from Hardhat but if the EC wasn't snapshotted, make a random one
@@ -362,9 +541,15 @@ func (m *TestManager) revertToSnapshot(snapshotID string) error {
 		}
 
 		// Revert the BN
-		err = m.beaconMockManager.RevertToSnapshot(snapshotID)
+		err = m.beaconMockServer.GetManager().RevertToSnapshot(snapshotID)
 		if err != nil {
 			return fmt.Errorf("error reverting the BN to snapshot %s: %w", snapshotID, err)
+		}
+
+		// Revert the VC
+		err = m.vcMockServer.GetManager().RevertToSnapshot(snapshotID)
+		if err != nil {
+			return fmt.Errorf("error reverting the VC to snapshot %s: %w", snapshotID, err)
 		}
 	}
 
