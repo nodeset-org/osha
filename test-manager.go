@@ -5,11 +5,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/google/uuid"
@@ -18,14 +16,10 @@ import (
 	bnserver "github.com/nodeset-org/osha/beacon/server"
 	"github.com/nodeset-org/osha/docker"
 	"github.com/nodeset-org/osha/filesystem"
-	vcdb "github.com/nodeset-org/osha/vc/db"
-	vcmanager "github.com/nodeset-org/osha/vc/manager"
-	vcserver "github.com/nodeset-org/osha/vc/server"
 	"github.com/rocket-pool/node-manager-core/beacon"
 	"github.com/rocket-pool/node-manager-core/beacon/client"
 	"github.com/rocket-pool/node-manager-core/eth"
 	"github.com/rocket-pool/node-manager-core/log"
-	"github.com/rocket-pool/node-manager-core/node/validator/keymanager"
 )
 
 const (
@@ -48,18 +42,6 @@ type TestManagerOptions struct {
 
 	// The port to run the Beacon Node with
 	BeaconPort *uint16
-
-	// The hostname to run the VC Key Manager with
-	KeyManagerHostname *string
-
-	// The port to run the VC Key Manager with
-	KeyManagerPort *uint16
-
-	// Options for the VC Key Manager server
-	KeyManagerOptions *vcdb.KeyManagerDatabaseOptions
-
-	// Options for the key manager client
-	KeyManagerClientOptions *keymanager.StandardKeyManagerClientOptions
 }
 
 // TestManager provides bootstrapping and a test service provider, useful for testing
@@ -81,15 +63,6 @@ type TestManager struct {
 
 	// BN Wait group for graceful shutdown
 	bnWg *sync.WaitGroup
-
-	// VC mock server for testing the VC key manager API
-	vcMockServer *vcserver.VcMockServer
-
-	// Key manager client
-	keyManagerClient keymanager.IKeyManagerClient
-
-	// VC Wait group for graceful shutdown
-	vcWg *sync.WaitGroup
 
 	// Docker mock for testing Docker controls and compose functions
 	docker *docker.DockerMockManager
@@ -133,25 +106,6 @@ func NewTestManager(opts *TestManagerOptions) (*TestManager, error) {
 	if opts.BeaconPort == nil {
 		port := uint16(5052)
 		opts.BeaconPort = &port
-	}
-	if opts.KeyManagerHostname == nil {
-		hostname := "localhost"
-		opts.KeyManagerHostname = &hostname
-	}
-	if opts.KeyManagerPort == nil {
-		port := uint16(5062)
-		opts.KeyManagerPort = &port
-	}
-	if opts.KeyManagerOptions == nil {
-		graffiti := vcdb.DefaultGraffiti
-		root := common.BytesToHash(opts.BeaconConfig.GenesisValidatorsRoot)
-		jwt := vcdb.DefaultJwtSecret
-		opts.KeyManagerOptions = &vcdb.KeyManagerDatabaseOptions{
-			DefaultFeeRecipient:   &vcdb.DefaultFeeRecipient,
-			DefaultGraffiti:       &graffiti,
-			GenesisValidatorsRoot: &root,
-			JwtSecret:             &jwt,
-		}
 	}
 
 	// Load the options
@@ -225,41 +179,6 @@ func NewTestManager(opts *TestManagerOptions) (*TestManager, error) {
 		),
 	)
 
-	// Make the JWT file for the key manager client
-	kmJwtSecretFile := filepath.Join(fsManager.GetTestDir(), "km_jwt_secret")
-	err = os.WriteFile(kmJwtSecretFile, []byte(*opts.KeyManagerOptions.JwtSecret), 0644)
-	if err != nil {
-		err2 := fsManager.Close()
-		if err2 != nil {
-			logger.Error("error closing FS manager", "err", err)
-		}
-		return nil, fmt.Errorf("error writing Key Manager JWT secret file: %w", err)
-	}
-
-	// Make the VC mock server
-	vcMockServer, err := vcserver.NewVcMockServer(logger, *opts.KeyManagerHostname, *opts.KeyManagerPort, *opts.KeyManagerOptions)
-	if err != nil {
-		err2 := fsManager.Close()
-		if err2 != nil {
-			logger.Error("error closing FS manager", "err", err)
-		}
-		return nil, fmt.Errorf("error creating VC mock server: %w", err)
-	}
-	vcWg := &sync.WaitGroup{}
-	vcMockServer.Start(vcWg)
-	keyManagerClient, err := keymanager.NewStandardKeyManagerClient(
-		fmt.Sprintf("http://%s:%d", *opts.KeyManagerHostname, *opts.KeyManagerPort),
-		kmJwtSecretFile,
-		opts.KeyManagerClientOptions,
-	)
-	if err != nil {
-		err2 := fsManager.Close()
-		if err2 != nil {
-			logger.Error("error closing FS manager", "err", err)
-		}
-		return nil, fmt.Errorf("error creating Key Manager client: %w", err)
-	}
-
 	// Make a Docker client mock
 	docker := docker.NewDockerMockManager(logger)
 
@@ -270,9 +189,6 @@ func NewTestManager(opts *TestManagerOptions) (*TestManager, error) {
 		beaconMockServer:   beaconMockServer,
 		beaconNode:         beaconNode,
 		bnWg:               bnWg,
-		vcMockServer:       vcMockServer,
-		keyManagerClient:   keyManagerClient,
-		vcWg:               vcWg,
 		docker:             docker,
 		chainID:            beaconCfg.ChainID,
 		fsManager:          fsManager,
@@ -307,16 +223,7 @@ func (m *TestManager) Close() error {
 		}
 		m.bnWg.Wait()
 		logger.Info("Stopped Beacon Node mock server")
-	}
-
-	// Shut down the VC
-	if m.vcWg != nil {
-		err = m.vcMockServer.Stop()
-		if err != nil {
-			logger.Warn("WARNING: VC mock server didn't shutdown cleanly", log.Err(err))
-		}
-		m.vcWg.Wait()
-		logger.Info("Stopped Validator Client mock server")
+		m.bnWg = nil
 	}
 
 	// Close the filesystem manager
@@ -345,14 +252,6 @@ func (m *TestManager) GetBeaconMockManager() *bnmanager.BeaconMockManager {
 
 func (m *TestManager) GetBeaconClient() beacon.IBeaconClient {
 	return m.beaconNode
-}
-
-func (m *TestManager) GetVcMockManager() *vcmanager.VcMockManager {
-	return m.vcMockServer.GetManager()
-}
-
-func (m *TestManager) GetKeyManagerClient() keymanager.IKeyManagerClient {
-	return m.keyManagerClient
 }
 
 func (m *TestManager) GetDockerMockManager() *docker.DockerMockManager {
@@ -488,9 +387,6 @@ func (m *TestManager) takeSnapshot(services Service) (string, error) {
 
 		// Snapshot the BN
 		m.beaconMockServer.GetManager().TakeSnapshot(snapshotName)
-
-		// Snapshot the VC
-		m.vcMockServer.GetManager().TakeSnapshot(snapshotName)
 	}
 
 	// Normally the snapshot name comes from Hardhat but if the EC wasn't snapshotted, make a random one
@@ -544,12 +440,6 @@ func (m *TestManager) revertToSnapshot(snapshotID string) error {
 		err = m.beaconMockServer.GetManager().RevertToSnapshot(snapshotID)
 		if err != nil {
 			return fmt.Errorf("error reverting the BN to snapshot %s: %w", snapshotID, err)
-		}
-
-		// Revert the VC
-		err = m.vcMockServer.GetManager().RevertToSnapshot(snapshotID)
-		if err != nil {
-			return fmt.Errorf("error reverting the VC to snapshot %s: %w", snapshotID, err)
 		}
 	}
 
