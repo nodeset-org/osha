@@ -16,11 +16,15 @@ import (
 const (
 	DefaultChainID                      uint64 = 31337
 	DefaultDepositContractAddressString string = "0xde905175eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	DefaultGenesisValidatorsRootString  string = "0x90de5e70615a7f7115e2b6aac319c03529df8242ae705fba9df39b79c59fa8b0" // Almost the same as Holesky
 )
 
 var (
 	// Default config
 	DefaultDepositContractAddress common.Address = common.HexToAddress(DefaultDepositContractAddressString)
+
+	// Default genesis validators root
+	DefaultGenesisValidatorsRoot common.Hash = common.HexToHash(DefaultGenesisValidatorsRootString)
 )
 
 // Basic Beacon Chain configuration
@@ -75,7 +79,7 @@ func NewDefaultConfig() *Config {
 		EpochsPerSyncCommitteePeriod: 256,
 		GenesisTime:                  time.Now().Truncate(time.Second),
 		GenesisForkVersion:           common.FromHex("0x90de5e70"),
-		GenesisValidatorsRoot:        common.FromHex("0x90de5e70615a7f7115e2b6aac319c03529df8242ae705fba9df39b79c59fa8b0"), // Almost the same as Holesky
+		GenesisValidatorsRoot:        DefaultGenesisValidatorsRoot[:],
 		AltairForkVersion:            common.FromHex("0x90de5e71"),
 		AltairForkEpoch:              0,
 		BellatrixForkVersion:         common.FromHex("0x90de5e72"),
