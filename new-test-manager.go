@@ -35,7 +35,7 @@ func (tm *OshaTestManager) RegisterModule(module IOshaModule) error {
 		states: make(map[IOshaModule]any),
 	}
 
-	// Taking a snapshot of the module when it's registered
+	// Taking an initial snapshot of the module
 	state, err := module.TakeSnapshot()
 	if err != nil {
 		return fmt.Errorf("failed to take snapshot for module %s: %w", module.GetName(), err)
@@ -50,22 +50,18 @@ func (tm *OshaTestManager) RegisterModule(module IOshaModule) error {
 func (tm *OshaTestManager) CreateCustomSnapshot() (string, error) {
 	// Create a new snapshot
 	snapshot := Snapshot{
-		name:   "snapshot_" + fmt.Sprint(len(tm.snapshotServiceMap)+1), // Unique snapshot name
+		name:   "snapshot_" + fmt.Sprint(len(tm.snapshotServiceMap)+1), // TODO: snapshot format?
 		states: make(map[IOshaModule]any),
 	}
 
-	// Take a snapshot of each registered module (from snapshotServiceMap)
+	// Take a snapshot of each registered module
 	for _, existingSnapshot := range tm.snapshotServiceMap {
 		for module, state := range existingSnapshot.states {
-			// Store the module state in the new snapshot
 			snapshot.states[module] = state
 		}
 	}
 
-	// Save the snapshot in the map
 	tm.snapshotServiceMap[snapshot.name] = snapshot
-
-	// Return the snapshot name
 	return snapshot.name, nil
 }
 
@@ -76,10 +72,10 @@ func (tm *OshaTestManager) RevertToSnapshot(name string) error {
 		return fmt.Errorf("snapshot %s does not exist", name)
 	}
 
-	// Revert each module to the state in the snapshot
+	// Revert each module to the state in the snapshot (all or nothing)
 	for module, state := range snapshot.states {
 		// Revert the module's state to the stored snapshot
-		err := module.RevertToSnapshot(state.(string)) // Assuming state is of type string
+		err := module.RevertToSnapshot(state.(string))
 		if err != nil {
 			return fmt.Errorf("failed to revert module %s: %w", module.GetName(), err)
 		}
