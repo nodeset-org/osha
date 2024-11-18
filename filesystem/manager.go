@@ -37,6 +37,7 @@ func NewFilesystemManager(logger *slog.Logger) (*FilesystemManager, error) {
 	logger.Info("Created snapshot dir", "dir", snapshotDir)
 
 	return &FilesystemManager{
+		name:        "FilesystemManager",
 		logger:      logger,
 		testDir:     testDir,
 		snapshotDir: snapshotDir,
