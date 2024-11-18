@@ -154,3 +154,19 @@ func (db *Database) Clone() *Database {
 	}
 	return clone
 }
+
+func (db *Database) Close() error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	db.validators = nil
+	db.validatorPubkeyMap = make(map[beacon.ValidatorPubkey]*Validator)
+	db.executionBlockMap = make(map[uint64]uint64)
+
+	db.currentSlot = 0
+	db.highestSlot = 0
+	db.nextExecutionBlockIndex = 0
+
+	db.logger.Info("Closed the database and released resources")
+	return nil
+}
