@@ -18,9 +18,10 @@ import (
 // Test getting all validators
 func TestAllValidators(t *testing.T) {
 	// Take a snapshot
-	server.manager.TakeSnapshot("test")
+	snapshotName, err := server.manager.TakeSnapshot()
+	require.NoError(t, err)
 	defer func() {
-		err := server.manager.RevertToSnapshot("test")
+		err := server.manager.RevertToSnapshot(snapshotName)
 		if err != nil {
 			t.Fatalf("error reverting to snapshot: %v", err)
 		}
@@ -44,9 +45,10 @@ func TestAllValidators(t *testing.T) {
 // Test getting 1 validator by index
 func TestValidatorsByIndex_1(t *testing.T) {
 	// Take a snapshot
-	server.manager.TakeSnapshot("test")
+	snapshotName, err := server.manager.TakeSnapshot()
+	require.NoError(t, err)
 	defer func() {
-		err := server.manager.RevertToSnapshot("test")
+		err := server.manager.RevertToSnapshot(snapshotName)
 		if err != nil {
 			t.Fatalf("error reverting to snapshot: %v", err)
 		}
@@ -73,9 +75,10 @@ func TestValidatorsByIndex_1(t *testing.T) {
 // Test getting 1 validator by pubkey
 func TestValidatorsByIndex_Pubkey(t *testing.T) {
 	// Take a snapshot
-	server.manager.TakeSnapshot("test")
+	snapshotName, err := server.manager.TakeSnapshot()
+	require.NoError(t, err)
 	defer func() {
-		err := server.manager.RevertToSnapshot("test")
+		err := server.manager.RevertToSnapshot(snapshotName)
 		if err != nil {
 			t.Fatalf("error reverting to snapshot: %v", err)
 		}
@@ -101,9 +104,10 @@ func TestValidatorsByIndex_Pubkey(t *testing.T) {
 // Test getting multiple validators but not all
 func TestValidatorsByIndex_Multi(t *testing.T) {
 	// Take a snapshot
-	server.manager.TakeSnapshot("test")
+	snapshotName, err := server.manager.TakeSnapshot()
+	require.NoError(t, err)
 	defer func() {
-		err := server.manager.RevertToSnapshot("test")
+		err := server.manager.RevertToSnapshot(snapshotName)
 		if err != nil {
 			t.Fatalf("error reverting to snapshot: %v", err)
 		}
@@ -133,9 +137,10 @@ func TestValidatorsByIndex_Multi(t *testing.T) {
 // Test getting multiple validators but not all via POST
 func TestValidatorsByIndex_Post(t *testing.T) {
 	// Take a snapshot
-	server.manager.TakeSnapshot("test")
+	snapshotName, err := server.manager.TakeSnapshot()
+	require.NoError(t, err)
 	defer func() {
-		err := server.manager.RevertToSnapshot("test")
+		err := server.manager.RevertToSnapshot(snapshotName)
 		if err != nil {
 			t.Fatalf("error reverting to snapshot: %v", err)
 		}

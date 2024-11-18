@@ -19,9 +19,10 @@ func TestSynced(t *testing.T) {
 	currentSlot := uint64(12)
 
 	// Take a snapshot
-	server.manager.TakeSnapshot("test")
+	snapshotName, err := server.manager.TakeSnapshot()
+	require.NoError(t, err)
 	defer func() {
-		err := server.manager.RevertToSnapshot("test")
+		err := server.manager.RevertToSnapshot(snapshotName)
 		if err != nil {
 			t.Fatalf("error reverting to snapshot: %v", err)
 		}
@@ -50,9 +51,10 @@ func TestUnsynced(t *testing.T) {
 	headSlot := uint64(12)
 
 	// Take a snapshot
-	server.manager.TakeSnapshot("test")
+	snapshotName, err := server.manager.TakeSnapshot()
+	require.NoError(t, err)
 	defer func() {
-		err := server.manager.RevertToSnapshot("test")
+		err := server.manager.RevertToSnapshot(snapshotName)
 		if err != nil {
 			t.Fatalf("error reverting to snapshot: %v", err)
 		}

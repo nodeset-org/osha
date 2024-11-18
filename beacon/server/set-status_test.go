@@ -16,9 +16,10 @@ func TestSetStatus(t *testing.T) {
 	status := beacon.ValidatorState_ActiveOngoing
 
 	// Take a snapshot
-	server.manager.TakeSnapshot("test")
+	snapshotName, err := server.manager.TakeSnapshot()
+	require.NoError(t, err)
 	defer func() {
-		err := server.manager.RevertToSnapshot("test")
+		err := server.manager.RevertToSnapshot(snapshotName)
 		if err != nil {
 			t.Fatalf("error reverting to snapshot: %v", err)
 		}

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/nodeset-org/osha/beacon/db"
@@ -16,6 +17,7 @@ import (
 type BeaconMockManager struct {
 	client.IBeaconApiProvider
 
+	name     string
 	database *db.Database
 	config   *db.Config
 
@@ -34,22 +36,54 @@ func NewBeaconMockManager(logger *slog.Logger, config *db.Config) *BeaconMockMan
 	}
 }
 
+func (m *BeaconMockManager) GetName() string {
+	return m.name
+}
+
+func (m *BeaconMockManager) GetRequirements() {
+}
+
 // Set the database for the manager directly if you need to custom provision it
 func (m *BeaconMockManager) SetDatabase(db *db.Database) {
 	m.database = db
 }
 
-// Take a snapshot of the current database state
-func (m *BeaconMockManager) TakeSnapshot(name string) {
-	m.snapshots[name] = m.database.Clone()
-	m.logger.Info("Took DB snapshot", "name", name)
+func (m *BeaconMockManager) TakeSnapshot() (string, error) {
+	snapshot := m.database.Clone()
+	if snapshot == nil {
+		return "", fmt.Errorf("failed to clone database for snapshot")
+	}
+	timestamp := time.Now().Format("20060102_150405")
+	snapshotName := fmt.Sprintf("%s_%s", m.name, timestamp)
+	m.snapshots[snapshotName] = snapshot
+
+	return snapshotName, nil
 }
 
-// Revert to a snapshot of the database state
+func (m *BeaconMockManager) Close() error {
+	if m.database != nil {
+		err := m.database.Close()
+		if err != nil {
+			m.logger.Error("Failed to close database", "error", err)
+			return fmt.Errorf("failed to close database: %w", err)
+		}
+	}
+
+	if m.snapshots != nil {
+		for snapshotName := range m.snapshots {
+			delete(m.snapshots, snapshotName)
+		}
+	}
+
+	m.database = nil
+	m.snapshots = nil
+	return nil
+}
+
 func (m *BeaconMockManager) RevertToSnapshot(name string) error {
 	snapshot, exists := m.snapshots[name]
 	if !exists {
-		return fmt.Errorf("snapshot with name [%s] does not exist", name)
+		return fmt.Errorf("snapshot %s does not exist", name)
 	}
 	m.database = snapshot
 	m.logger.Info("Reverted to DB snapshot", "name", name)

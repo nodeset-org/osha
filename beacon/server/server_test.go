@@ -78,9 +78,10 @@ func cleanup() {
 // Check for a 404 if requesting an unknown route
 func TestUnknownRoute(t *testing.T) {
 	// Take a snapshot
-	server.manager.TakeSnapshot("test")
+	snapshotName, err := server.manager.TakeSnapshot()
+	require.NoError(t, err)
 	defer func() {
-		err := server.manager.RevertToSnapshot("test")
+		err := server.manager.RevertToSnapshot(snapshotName)
 		if err != nil {
 			t.Fatalf("error reverting to snapshot: %v", err)
 		}
