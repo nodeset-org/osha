@@ -9,10 +9,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // FilesystemManager manages folders used by OSHA tests
 type FilesystemManager struct {
+	name        string
 	logger      *slog.Logger
 	testDir     string
 	snapshotDir string
@@ -39,6 +41,13 @@ func NewFilesystemManager(logger *slog.Logger) (*FilesystemManager, error) {
 		testDir:     testDir,
 		snapshotDir: snapshotDir,
 	}, nil
+}
+
+func (m *FilesystemManager) GetName() string {
+	return m.name
+}
+
+func (m *FilesystemManager) GetRequirements() {
 }
 
 // Get the test dir
@@ -69,12 +78,15 @@ func (m *FilesystemManager) Close() error {
 }
 
 // Take a snapshot of the current test dir
-func (m *FilesystemManager) TakeSnapshot(name string) error {
+func (m *FilesystemManager) TakeSnapshot() error {
+	timestamp := time.Now().Format("20060102_150405")
+	snapshotName := fmt.Sprintf("%s_%s", m.name, timestamp)
+
 	// Error out if the snapshot already exists
-	snapshotPath := filepath.Join(m.snapshotDir, name)
+	snapshotPath := filepath.Join(m.snapshotDir, snapshotName)
 	_, err := os.ReadFile(snapshotPath)
 	if !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("snapshot with name [%s] already exists", name)
+		return fmt.Errorf("snapshot with name [%s] already exists", snapshotName)
 	}
 
 	// Make the snapshot folder
@@ -89,7 +101,7 @@ func (m *FilesystemManager) TakeSnapshot(name string) error {
 		return fmt.Errorf("error copying test dir to snapshot dir: %v", err)
 	}
 
-	m.logger.Info("Took snapshot", "name", name, "path", snapshotPath)
+	m.logger.Info("Took snapshot", "name", snapshotName, "path", snapshotPath)
 	return nil
 }
 

@@ -339,7 +339,7 @@ func (m *TestManager) takeSnapshot(services Service) (string, error) {
 
 	if services.Contains(Service_Filesystem) {
 		// Snapshot the filesystem
-		err := m.fsManager.TakeSnapshot(snapshotName)
+		err := m.fsManager.TakeSnapshot()
 		if err != nil {
 			return "", fmt.Errorf("error creating filesystem snapshot: %w", err)
 		}
