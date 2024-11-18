@@ -311,7 +311,10 @@ func (m *TestManager) takeSnapshot(services Service) (string, error) {
 		}
 
 		// Snapshot the BN
-		m.beaconMockManager.TakeSnapshot(snapshotName)
+		snapshotName, err = m.beaconMockManager.TakeSnapshot()
+		if err != nil {
+			return "", fmt.Errorf("error creating snapshot: %w", err)
+		}
 	}
 
 	// Normally the snapshot name comes from Hardhat but if the EC wasn't snapshotted, make a random one
