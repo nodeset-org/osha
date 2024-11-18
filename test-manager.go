@@ -331,7 +331,7 @@ func (m *TestManager) takeSnapshot(services Service) (string, error) {
 
 	if services.Contains(Service_Docker) {
 		// Snapshot Docker
-		err := m.docker.TakeSnapshot(snapshotName)
+		err := m.docker.TakeSnapshot()
 		if err != nil {
 			return "", fmt.Errorf("error creating Docker snapshot: %w", err)
 		}

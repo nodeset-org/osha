@@ -29,6 +29,7 @@ type BeaconMockManager struct {
 // Create a new beacon mock manager instance
 func NewBeaconMockManager(logger *slog.Logger, config *db.Config) *BeaconMockManager {
 	return &BeaconMockManager{
+		name:      "BeaconMockManager",
 		database:  db.NewDatabase(logger, config.FirstExecutionBlockIndex),
 		config:    config,
 		snapshots: map[string]*db.Database{},
