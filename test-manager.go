@@ -157,6 +157,7 @@ func NewTestManager() (*TestManager, error) {
 		fsManager:          fsManager,
 		snapshotServiceMap: map[string]Service{},
 		hardhatSnapshotMap: map[string]string{},
+		registeredModules:  map[string]Snapshot{},
 	}
 
 	// Create the baseline snapshot
