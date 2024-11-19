@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/google/uuid"
 	"github.com/nodeset-org/osha/beacon/db"
 	"github.com/nodeset-org/osha/beacon/manager"
 	"github.com/nodeset-org/osha/docker"
@@ -23,6 +22,21 @@ const (
 	// The environment variable for the locally running Hardhat instance
 	HardhatEnvVar string = "HARDHAT_URL"
 )
+
+// Interface representing individual module snapshots that compose an entire Snapshot
+type IOshaModule interface {
+	GetName() string
+	GetRequirements()
+	Close() error
+	TakeSnapshot() (string, error)
+	RevertToSnapshot(name string) error
+}
+
+// Struct representing an entire snapshot for a given test case
+type Snapshot struct {
+	name   string
+	states map[IOshaModule]any
+}
 
 // TestManager provides bootstrapping and a test service provider, useful for testing
 type TestManager struct {
@@ -54,7 +68,7 @@ type TestManager struct {
 	fsManager *filesystem.FilesystemManager
 
 	// Map of which services were captured during a snapshot
-	snapshotServiceMap map[string]Service
+	snapshotServiceMap map[string]Snapshot
 }
 
 // Creates a new TestManager instance
@@ -134,11 +148,11 @@ func NewTestManager() (*TestManager, error) {
 		docker:             docker,
 		chainID:            beaconCfg.ChainID,
 		fsManager:          fsManager,
-		snapshotServiceMap: map[string]Service{},
+		snapshotServiceMap: map[string]Snapshot{},
 	}
 
 	// Create the baseline snapshot
-	baselineSnapshotID, err := m.takeSnapshot(Service_All)
+	baselineSnapshotID, err := m.CreateCustomSnapshot()
 	if err != nil {
 		return nil, fmt.Errorf("error creating baseline snapshot: %w", err)
 	}
@@ -150,7 +164,7 @@ func NewTestManager() (*TestManager, error) {
 
 // Cleans up the test environment, including the testing folder that houses any generated files
 func (m *TestManager) Close() error {
-	err := m.revertToSnapshot(m.baselineSnapshotID)
+	err := m.RevertToSnapshot(m.baselineSnapshotID)
 	if err != nil {
 		return fmt.Errorf("error reverting to baseline snapshot: %w", err)
 	}
@@ -196,13 +210,13 @@ func (m *TestManager) GetTestDir() string {
 
 // Reverts the services to the baseline snapshot
 func (m *TestManager) RevertToBaseline() error {
-	err := m.revertToSnapshot(m.baselineSnapshotID)
+	err := m.RevertToSnapshot(m.baselineSnapshotID)
 	if err != nil {
 		return fmt.Errorf("error reverting to baseline snapshot: %w", err)
 	}
 
 	// Regenerate the baseline snapshot since Hardhat can't revert to it multiple times
-	baselineSnapshotID, err := m.takeSnapshot(Service_All)
+	baselineSnapshotID, err := m.CreateCustomSnapshot()
 	if err != nil {
 		return fmt.Errorf("error creating baseline snapshot: %w", err)
 	}
@@ -210,14 +224,14 @@ func (m *TestManager) RevertToBaseline() error {
 	return nil
 }
 
-// Takes a snapshot of the service states
-func (m *TestManager) CreateCustomSnapshot(services Service) (string, error) {
-	return m.takeSnapshot(services)
-}
+// // Takes a snapshot of the service states
+// func (m *TestManager) CreateCustomSnapshot(services Service) (string, error) {
+// 	return m.CreateCustomSnapshot()
+// }
 
 // Revert the services to a snapshot state
 func (m *TestManager) RevertToCustomSnapshot(snapshotID string) error {
-	return m.revertToSnapshot(snapshotID)
+	return m.RevertToSnapshot(snapshotID)
 }
 
 // ==========================
@@ -300,94 +314,131 @@ func (m *TestManager) SetMiningInterval(interval uint) error {
 // === Internal Methods ===
 // ========================
 
-// Takes a snapshot of the service states
-func (m *TestManager) takeSnapshot(services Service) (string, error) {
-	var snapshotName string
-	if services.Contains(Service_EthClients) {
-		// Snapshot the EC
-		err := m.hardhatRpcClient.Call(&snapshotName, "evm_snapshot")
-		if err != nil {
-			return "", fmt.Errorf("error creating snapshot: %w", err)
-		}
+func (tm *TestManager) CreateCustomSnapshot() (string, error) {
+	// Create a new snapshot
+	snapshot := Snapshot{
+		name:   "snapshot_" + fmt.Sprint(len(tm.snapshotServiceMap)+1), // TODO: snapshot format?
+		states: make(map[IOshaModule]any),
+	}
 
-		// Snapshot the BN
-		snapshotName, err = m.beaconMockManager.TakeSnapshot()
-		if err != nil {
-			return "", fmt.Errorf("error creating snapshot: %w", err)
+	// Take a snapshot of each registered module
+	for _, existingSnapshot := range tm.snapshotServiceMap {
+		for module, state := range existingSnapshot.states {
+			snapshot.states[module] = state
 		}
 	}
 
-	// Normally the snapshot name comes from Hardhat but if the EC wasn't snapshotted, make a random one
-	if snapshotName == "" {
-		for {
-			candidate := uuid.New().String()
-			_, exists := m.snapshotServiceMap[candidate]
-			if !exists {
-				snapshotName = candidate
-				break
-			}
-		}
-	}
-
-	if services.Contains(Service_Docker) {
-		// Snapshot Docker
-		err := m.docker.TakeSnapshot()
-		if err != nil {
-			return "", fmt.Errorf("error creating Docker snapshot: %w", err)
-		}
-	}
-
-	if services.Contains(Service_Filesystem) {
-		// Snapshot the filesystem
-		err := m.fsManager.TakeSnapshot()
-		if err != nil {
-			return "", fmt.Errorf("error creating filesystem snapshot: %w", err)
-		}
-	}
-
-	// Store the services that were captured
-	m.snapshotServiceMap[snapshotName] = services
-	return snapshotName, nil
+	tm.snapshotServiceMap[snapshot.name] = snapshot
+	return snapshot.name, nil
 }
 
-// Revert the services to a snapshot state
-func (m *TestManager) revertToSnapshot(snapshotID string) error {
-	services, exists := m.snapshotServiceMap[snapshotID]
+func (tm *TestManager) RevertToSnapshot(name string) error {
+	// Check if the snapshot exists
+	snapshot, exists := tm.snapshotServiceMap[name]
 	if !exists {
-		return fmt.Errorf("snapshot with ID [%s] does not exist", snapshotID)
+		return fmt.Errorf("snapshot %s does not exist", name)
 	}
 
-	if services.Contains(Service_EthClients) {
-		// Revert the EC
-		err := m.hardhatRpcClient.Call(nil, "evm_revert", snapshotID)
+	// Revert each module to the state in the snapshot (all or nothing)
+	for module, state := range snapshot.states {
+		// Revert the module's state to the stored snapshot
+		err := module.RevertToSnapshot(state.(string))
 		if err != nil {
-			return fmt.Errorf("error reverting Hardhat to snapshot %s: %w", snapshotID, err)
-		}
-
-		// Revert the BN
-		err = m.beaconMockManager.RevertToSnapshot(snapshotID)
-		if err != nil {
-			return fmt.Errorf("error reverting the BN to snapshot %s: %w", snapshotID, err)
+			return fmt.Errorf("failed to revert module %s: %w", module.GetName(), err)
 		}
 	}
 
-	if services.Contains(Service_Docker) {
-		// Revert Docker
-		err := m.docker.RevertToSnapshot(snapshotID)
-		if err != nil {
-			return fmt.Errorf("error reverting Docker to snapshot %s: %w", snapshotID, err)
-		}
-	}
-
-	if services.Contains(Service_Filesystem) {
-		// Revert the filesystem
-		err := m.fsManager.RevertToSnapshot(snapshotID)
-		if err != nil {
-			return fmt.Errorf("error reverting the filesystem to snapshot %s: %w", snapshotID, err)
-		}
-	}
 	return nil
 }
+
+// Takes a snapshot of the service states
+// func (m *TestManager) takeSnapshot(services Service) (string, error) {
+// 	var snapshotName string
+// 	if services.Contains(Service_EthClients) {
+// 		// Snapshot the EC
+// 		err := m.hardhatRpcClient.Call(&snapshotName, "evm_snapshot")
+// 		if err != nil {
+// 			return "", fmt.Errorf("error creating snapshot: %w", err)
+// 		}
+
+// 		// Snapshot the BN
+// 		snapshotName, err = m.beaconMockManager.TakeSnapshot()
+// 		if err != nil {
+// 			return "", fmt.Errorf("error creating snapshot: %w", err)
+// 		}
+// 	}
+
+// 	// Normally the snapshot name comes from Hardhat but if the EC wasn't snapshotted, make a random one
+// 	if snapshotName == "" {
+// 		for {
+// 			candidate := uuid.New().String()
+// 			_, exists := m.snapshotServiceMap[candidate]
+// 			if !exists {
+// 				snapshotName = candidate
+// 				break
+// 			}
+// 		}
+// 	}
+
+// 	if services.Contains(Service_Docker) {
+// 		// Snapshot Docker
+// 		err := m.docker.TakeSnapshot()
+// 		if err != nil {
+// 			return "", fmt.Errorf("error creating Docker snapshot: %w", err)
+// 		}
+// 	}
+
+// 	if services.Contains(Service_Filesystem) {
+// 		// Snapshot the filesystem
+// 		err := m.fsManager.TakeSnapshot()
+// 		if err != nil {
+// 			return "", fmt.Errorf("error creating filesystem snapshot: %w", err)
+// 		}
+// 	}
+
+// 	// Store the services that were captured
+// 	m.snapshotServiceMap[snapshotName] = services
+// 	return snapshotName, nil
+// }
+
+// Revert the services to a snapshot state
+// func (m *TestManager) revertToSnapshot(snapshotID string) error {
+// 	services, exists := m.snapshotServiceMap[snapshotID]
+// 	if !exists {
+// 		return fmt.Errorf("snapshot with ID [%s] does not exist", snapshotID)
+// 	}
+
+// 	if services.Contains(Service_EthClients) {
+// 		// Revert the EC
+// 		err := m.hardhatRpcClient.Call(nil, "evm_revert", snapshotID)
+// 		if err != nil {
+// 			return fmt.Errorf("error reverting Hardhat to snapshot %s: %w", snapshotID, err)
+// 		}
+
+// 		// Revert the BN
+// 		err = m.beaconMockManager.RevertToSnapshot(snapshotID)
+// 		if err != nil {
+// 			return fmt.Errorf("error reverting the BN to snapshot %s: %w", snapshotID, err)
+// 		}
+// 	}
+
+// 	if services.Contains(Service_Docker) {
+// 		// Revert Docker
+// 		err := m.docker.RevertToSnapshot(snapshotID)
+// 		if err != nil {
+// 			return fmt.Errorf("error reverting Docker to snapshot %s: %w", snapshotID, err)
+// 		}
+// 	}
+
+// 	if services.Contains(Service_Filesystem) {
+// 		// Revert the filesystem
+// 		err := m.fsManager.RevertToSnapshot(snapshotID)
+// 		if err != nil {
+// 			return fmt.Errorf("error reverting the filesystem to snapshot %s: %w", snapshotID, err)
+// 		}
+// 	}
+// 	return nil
+// }
 
 // Tell Hardhat to mine a block
 func (m *TestManager) hardhat_mineBlock() error {
