@@ -224,10 +224,26 @@ func (m *TestManager) RevertToBaseline() error {
 	return nil
 }
 
-// // Takes a snapshot of the service states
-// func (m *TestManager) CreateCustomSnapshot(services Service) (string, error) {
-// 	return m.CreateCustomSnapshot()
-// }
+func (tm *TestManager) CreateCustomSnapshot() (string, error) {
+	timestamp := time.Now().Format("20060102_150405")
+	snapshotName := fmt.Sprintf("snapshot_%s", timestamp)
+
+	// Create a new snapshot
+	snapshot := Snapshot{
+		name:   snapshotName,
+		states: make(map[IOshaModule]any),
+	}
+
+	// Take a snapshot of each registered module
+	for _, existingSnapshot := range tm.snapshotServiceMap {
+		for module, state := range existingSnapshot.states {
+			snapshot.states[module] = state
+		}
+	}
+
+	tm.snapshotServiceMap[snapshot.name] = snapshot
+	return snapshot.name, nil
+}
 
 // Revert the services to a snapshot state
 func (m *TestManager) RevertToCustomSnapshot(snapshotID string) error {
@@ -313,24 +329,6 @@ func (m *TestManager) SetMiningInterval(interval uint) error {
 // ========================
 // === Internal Methods ===
 // ========================
-
-func (tm *TestManager) CreateCustomSnapshot() (string, error) {
-	// Create a new snapshot
-	snapshot := Snapshot{
-		name:   "snapshot_" + fmt.Sprint(len(tm.snapshotServiceMap)+1), // TODO: snapshot format?
-		states: make(map[IOshaModule]any),
-	}
-
-	// Take a snapshot of each registered module
-	for _, existingSnapshot := range tm.snapshotServiceMap {
-		for module, state := range existingSnapshot.states {
-			snapshot.states[module] = state
-		}
-	}
-
-	tm.snapshotServiceMap[snapshot.name] = snapshot
-	return snapshot.name, nil
-}
 
 func (tm *TestManager) RevertToSnapshot(name string) error {
 	// Check if the snapshot exists
