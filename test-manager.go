@@ -25,7 +25,7 @@ type IOshaModule interface {
 	GetRequirements()
 	Close() error
 	TakeSnapshot(name string) (string, error) // (state, error)
-	RevertToSnapshot(name string) error
+	RevertToSnapshot(name any) error
 }
 
 // Struct representing an entire snapshot for a given test case
@@ -333,9 +333,9 @@ func (m *TestManager) RevertToCustomSnapshot(snapshotID string) error {
 		if !exists {
 			continue
 		}
-		err := module.RevertToSnapshot(moduleState.(string))
+		err := module.RevertToSnapshot(moduleState)
 		if err != nil {
-			return fmt.Errorf("error reverting the module to snapshot %s: %w", moduleState.(string), err)
+			return fmt.Errorf("error reverting the module to snapshot %s: %w", moduleState, err)
 		}
 	}
 
