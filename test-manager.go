@@ -343,7 +343,6 @@ func (m *TestManager) RevertToCustomSnapshot(snapshotID string) error {
 }
 
 func (m *TestManager) RegisterModule(module IOshaModule) error {
-	// Store the snapshot in the snapshotServiceMap
 	m.registeredModules[module.GetName()] = module
 	return nil
 }
