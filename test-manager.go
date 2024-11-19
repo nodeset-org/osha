@@ -333,7 +333,10 @@ func (m *TestManager) RevertToCustomSnapshot(snapshotID string) error {
 		if !exists {
 			continue
 		}
-		module.RevertToSnapshot(moduleState.(string))
+		err := module.RevertToSnapshot(moduleState.(string))
+		if err != nil {
+			return fmt.Errorf("error reverting the module to snapshot %s: %w", moduleState.(string), err)
+		}
 	}
 
 	return nil
