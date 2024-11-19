@@ -19,6 +19,21 @@ import (
 	"github.com/rocket-pool/node-manager-core/eth"
 )
 
+// Interface representing individual module snapshots that compose an entire Snapshot
+type IOshaModule interface {
+	GetName() string
+	GetRequirements()
+	Close() error
+	TakeSnapshot() (string, error)
+	RevertToSnapshot(name string) error
+}
+
+// Struct representing an entire snapshot for a given test case
+type Snapshot struct {
+	name   string
+	states map[IOshaModule]any
+}
+
 const (
 	// The environment variable for the locally running Hardhat instance
 	HardhatEnvVar string = "HARDHAT_URL"
@@ -55,6 +70,9 @@ type TestManager struct {
 
 	// Map of which services were captured during a snapshot
 	snapshotServiceMap map[string]Service
+
+	// Map of OSHA snapshot name mapped to hardhat snapshot name
+	hardhatSnapshotMap map[string]string
 }
 
 // Creates a new TestManager instance
@@ -135,6 +153,7 @@ func NewTestManager() (*TestManager, error) {
 		chainID:            beaconCfg.ChainID,
 		fsManager:          fsManager,
 		snapshotServiceMap: map[string]Service{},
+		hardhatSnapshotMap: map[string]string{},
 	}
 
 	// Create the baseline snapshot
@@ -302,28 +321,27 @@ func (m *TestManager) SetMiningInterval(interval uint) error {
 
 // Takes a snapshot of the service states
 func (m *TestManager) takeSnapshot(services Service) (string, error) {
+	// Generate a unique snapshot name
 	var snapshotName string
+	for {
+		candidate := uuid.New().String()
+		_, exists := m.snapshotServiceMap[candidate]
+		if !exists {
+			snapshotName = candidate
+			break
+		}
+	}
+
+	var hardhatSnapshotName string
 	if services.Contains(Service_EthClients) {
 		// Snapshot the EC
-		err := m.hardhatRpcClient.Call(&snapshotName, "evm_snapshot")
+		err := m.hardhatRpcClient.Call(&hardhatSnapshotName, "evm_snapshot")
 		if err != nil {
 			return "", fmt.Errorf("error creating snapshot: %w", err)
 		}
 
 		// Snapshot the BN
 		m.beaconMockManager.TakeSnapshot(snapshotName)
-	}
-
-	// Normally the snapshot name comes from Hardhat but if the EC wasn't snapshotted, make a random one
-	if snapshotName == "" {
-		for {
-			candidate := uuid.New().String()
-			_, exists := m.snapshotServiceMap[candidate]
-			if !exists {
-				snapshotName = candidate
-				break
-			}
-		}
 	}
 
 	if services.Contains(Service_Docker) {
@@ -344,6 +362,7 @@ func (m *TestManager) takeSnapshot(services Service) (string, error) {
 
 	// Store the services that were captured
 	m.snapshotServiceMap[snapshotName] = services
+	m.hardhatSnapshotMap[snapshotName] = hardhatSnapshotName
 	return snapshotName, nil
 }
 
@@ -356,7 +375,11 @@ func (m *TestManager) revertToSnapshot(snapshotID string) error {
 
 	if services.Contains(Service_EthClients) {
 		// Revert the EC
-		err := m.hardhatRpcClient.Call(nil, "evm_revert", snapshotID)
+		hardhatSnapshotId, exists := m.hardhatSnapshotMap[snapshotID]
+		if !exists {
+			return fmt.Errorf("Hardhat snapshot ID not found for snapshot ID [%s]", snapshotID)
+		}
+		err := m.hardhatRpcClient.Call(nil, "evm_revert", hardhatSnapshotId)
 		if err != nil {
 			return fmt.Errorf("error reverting Hardhat to snapshot %s: %w", snapshotID, err)
 		}

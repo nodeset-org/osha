@@ -23,6 +23,7 @@ go.work.sum
 
 # Hardhat artifacts
 hardhat/.cache
+hardhat/cache
 hardhat/alias
 hardhat/artifacts
 hardhat/node_modules
@@ -30,3 +31,6 @@ hardhat/versions
 
 # Binaries
 beacon/beacon
+
+# Misc
+.DS_Store
