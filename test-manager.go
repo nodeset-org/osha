@@ -73,6 +73,9 @@ type TestManager struct {
 
 	// Map of OSHA snapshot name mapped to hardhat snapshot name
 	hardhatSnapshotMap map[string]string
+
+	// Map of registered modules
+	registeredModules map[string]Snapshot
 }
 
 // Creates a new TestManager instance
@@ -237,6 +240,25 @@ func (m *TestManager) CreateCustomSnapshot(services Service) (string, error) {
 // Revert the services to a snapshot state
 func (m *TestManager) RevertToCustomSnapshot(snapshotID string) error {
 	return m.revertToSnapshot(snapshotID)
+}
+
+func (m *TestManager) RegisterModule(module IOshaModule) error {
+	// Create a new snapshot for the module and save it in snapshotServiceMap
+	snapshot := Snapshot{
+		name:   module.GetName(),
+		states: make(map[IOshaModule]any),
+	}
+
+	// Taking an initial snapshot of the module
+	state, err := module.TakeSnapshot()
+	if err != nil {
+		return fmt.Errorf("failed to take snapshot for module %s: %w", module.GetName(), err)
+	}
+	snapshot.states[module] = state
+
+	// Store the snapshot in the snapshotServiceMap
+	m.registeredModules[module.GetName()] = snapshot
+	return nil
 }
 
 // ==========================
