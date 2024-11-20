@@ -24,7 +24,7 @@ type IOshaModule interface {
 	GetName() string
 	GetRequirements()
 	Close() error
-	TakeSnapshot(name string) (string, error) // (state, error)
+	TakeSnapshot() (any, error)
 	RevertToSnapshot(name any) error
 }
 
@@ -173,7 +173,7 @@ func NewTestManager() (*TestManager, error) {
 
 // Cleans up the test environment, including the testing folder that houses any generated files
 func (m *TestManager) Close() error {
-	err := m.RevertToCustomSnapshot(m.baselineSnapshotID)
+	err := m.RevertToSnapshot(m.baselineSnapshotID)
 	if err != nil {
 		return fmt.Errorf("error reverting to baseline snapshot: %w", err)
 	}
@@ -219,7 +219,7 @@ func (m *TestManager) GetTestDir() string {
 
 // Reverts the services to the baseline snapshot
 func (m *TestManager) RevertToBaseline() error {
-	err := m.RevertToCustomSnapshot(m.baselineSnapshotID)
+	err := m.RevertToSnapshot(m.baselineSnapshotID)
 	if err != nil {
 		return fmt.Errorf("error reverting to baseline snapshot: %w", err)
 	}
@@ -275,7 +275,7 @@ func (m *TestManager) CreateCustomSnapshot() (string, error) {
 
 	// Take a snapshot of all registered modules
 	for _, module := range m.registeredModules {
-		state, err := module.TakeSnapshot(snapshotName)
+		state, err := module.TakeSnapshot()
 		if err != nil {
 			return "", fmt.Errorf("error taking snapshot for module %s: %w", module.GetName(), err)
 		}
@@ -288,43 +288,43 @@ func (m *TestManager) CreateCustomSnapshot() (string, error) {
 	return snapshotName, nil
 }
 
-func (m *TestManager) RevertToCustomSnapshot(snapshotID string) error {
-	snapshot, exists := m.snapshots[snapshotID]
+func (m *TestManager) RevertToSnapshot(snapshotName string) error {
+	snapshot, exists := m.snapshots[snapshotName]
 	if !exists {
-		return fmt.Errorf("snapshot %s does not exist", snapshotID)
+		return fmt.Errorf("snapshot %s does not exist", snapshotName)
 	}
 
 	// Revert snapshot of Hardhat
-	hardhatSnapshotName, exists := m.hardhatSnapshotMap[snapshotID]
+	hardhatSnapshotName, exists := m.hardhatSnapshotMap[snapshotName]
 	if !exists {
-		return fmt.Errorf("Hardhat snapshot ID not found for snapshot ID [%s]", snapshotID)
+		return fmt.Errorf("Hardhat snapshot ID not found for snapshot ID [%s]", snapshotName)
 	}
 	err := m.hardhatRpcClient.Call(nil, "evm_revert", hardhatSnapshotName)
 	if err != nil {
-		return fmt.Errorf("error reverting Hardhat to snapshot %s: %w", snapshotID, err)
+		return fmt.Errorf("error reverting Hardhat to snapshot %s: %w", snapshotName, err)
 	}
 	// Take a snapshot of Hardhat again because hardhat deletes reverted snapshots
 	err = m.hardhatRpcClient.Call(&hardhatSnapshotName, "evm_snapshot")
 	if err != nil {
-		return fmt.Errorf("error taking snapshot of Hardhat: %w", err)
+		return fmt.Errorf("error regenerating snapshot of Hardhat after revert: Hardhat deletes reverted snapshots. %w", err)
 	}
 
 	// Revert the BN
-	err = m.beaconMockManager.RevertToSnapshot(snapshotID)
+	err = m.beaconMockManager.RevertToSnapshot(snapshotName)
 	if err != nil {
-		return fmt.Errorf("error reverting the BN to snapshot %s: %w", snapshotID, err)
+		return fmt.Errorf("error reverting the BN to snapshot %s: %w", snapshotName, err)
 	}
 
 	// Revert Docker
-	err = m.docker.RevertToSnapshot(snapshotID)
+	err = m.docker.RevertToSnapshot(snapshotName)
 	if err != nil {
-		return fmt.Errorf("error reverting Docker to snapshot %s: %w", snapshotID, err)
+		return fmt.Errorf("error reverting Docker to snapshot %s: %w", snapshotName, err)
 	}
 
 	// Revert the filesystem
-	err = m.fsManager.RevertToSnapshot(snapshotID)
+	err = m.fsManager.RevertToSnapshot(snapshotName)
 	if err != nil {
-		return fmt.Errorf("error reverting the filesystem to snapshot %s: %w", snapshotID, err)
+		return fmt.Errorf("error reverting the filesystem to snapshot %s: %w", snapshotName, err)
 	}
 
 	// Revert all registered modules
@@ -342,9 +342,18 @@ func (m *TestManager) RevertToCustomSnapshot(snapshotID string) error {
 	return nil
 }
 
-func (m *TestManager) RegisterModule(module IOshaModule) error {
+// If a user registers a module with an existing name, it will be overwritten
+func (m *TestManager) RegisterModule(module IOshaModule) {
 	m.registeredModules[module.GetName()] = module
-	return nil
+}
+
+// Returns a list of registered modules
+func (m *TestManager) GetRegisteredModules() []IOshaModule {
+	modules := make([]IOshaModule, 0, len(m.registeredModules))
+	for _, module := range m.registeredModules {
+		modules = append(modules, module)
+	}
+	return modules
 }
 
 // ==========================
