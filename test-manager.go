@@ -68,13 +68,13 @@ type TestManager struct {
 	// Manager for the filesystem's test folder
 	fsManager *filesystem.FilesystemManager
 
-	// Map of snapshot name to snapshot for registered modules
+	// Map of snapshot name to snapshot for registered modules (unique UUID => snapshot)
 	snapshots map[string]Snapshot
 
-	// Map of OSHA snapshot name mapped to hardhat snapshot name
+	// Map of OSHA snapshot name mapped to hardhat snapshot name (unique UUID => hardhat-specific ID)
 	hardhatSnapshotMap map[string]string
 
-	// Map of registered modules
+	// Map of registered modules (moduleName -> module)
 	registeredModules map[string]IOshaModule
 }
 
