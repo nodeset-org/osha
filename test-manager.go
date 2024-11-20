@@ -161,7 +161,7 @@ func NewTestManager() (*TestManager, error) {
 	}
 
 	// Create the baseline snapshot
-	baselineSnapshotID, err := m.CreateCustomSnapshot()
+	baselineSnapshotID, err := m.CreateSnapshot()
 	if err != nil {
 		return nil, fmt.Errorf("error creating baseline snapshot: %w", err)
 	}
@@ -225,7 +225,7 @@ func (m *TestManager) RevertToBaseline() error {
 	}
 
 	// Regenerate the baseline snapshot since Hardhat can't revert to it multiple times
-	baselineSnapshotID, err := m.CreateCustomSnapshot()
+	baselineSnapshotID, err := m.CreateSnapshot()
 	if err != nil {
 		return fmt.Errorf("error creating baseline snapshot: %w", err)
 	}
@@ -234,7 +234,7 @@ func (m *TestManager) RevertToBaseline() error {
 }
 
 // Takes a snapshot of the service states
-func (m *TestManager) CreateCustomSnapshot() (string, error) {
+func (m *TestManager) CreateSnapshot() (string, error) {
 	var snapshotName string
 	for {
 		candidateName := uuid.New().String()
