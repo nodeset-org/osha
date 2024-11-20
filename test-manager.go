@@ -19,21 +19,6 @@ import (
 	"github.com/rocket-pool/node-manager-core/eth"
 )
 
-// Interface representing individual module snapshots that compose an entire Snapshot
-type IOshaModule interface {
-	GetName() string
-	GetRequirements()
-	Close() error
-	TakeSnapshot() (any, error)
-	RevertToSnapshot(name any) error
-}
-
-// Struct representing an entire snapshot for a given test case
-type Snapshot struct {
-	name   string
-	states map[IOshaModule]any
-}
-
 const (
 	// The environment variable for the locally running Hardhat instance
 	HardhatEnvVar string = "HARDHAT_URL"
@@ -224,12 +209,6 @@ func (m *TestManager) RevertToBaseline() error {
 		return fmt.Errorf("error reverting to baseline snapshot: %w", err)
 	}
 
-	// Regenerate the baseline snapshot since Hardhat can't revert to it multiple times
-	baselineSnapshotID, err := m.CreateSnapshot()
-	if err != nil {
-		return fmt.Errorf("error creating baseline snapshot: %w", err)
-	}
-	m.baselineSnapshotID = baselineSnapshotID
 	return nil
 }
 
