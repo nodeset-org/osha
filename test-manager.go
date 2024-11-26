@@ -273,24 +273,21 @@ func (m *TestManager) RevertToSnapshot(snapshotName string) error {
 		return fmt.Errorf("snapshot %s does not exist", snapshotName)
 	}
 
-	hardhatSnapshotName, exists := m.hardhatSnapshotMap[snapshotName]
-
-	var newHardhatSnapshotName string
-	// Take a snapshot of Hardhat before reverting because hardhat deletes reverted snapshots
-	err := m.hardhatRpcClient.Call(&newHardhatSnapshotName, "evm_snapshot")
-	if err != nil {
-		return fmt.Errorf("error regenerating snapshot of Hardhat after revert: Hardhat deletes reverted snapshots. %w", err)
-	}
-	m.hardhatSnapshotMap[snapshotName] = newHardhatSnapshotName
-
 	// Revert snapshot of Hardhat
+	hardhatSnapshotName, exists := m.hardhatSnapshotMap[snapshotName]
 	if !exists {
 		return fmt.Errorf("Hardhat snapshot ID not found for snapshot ID [%s]", snapshotName)
 	}
-	err = m.hardhatRpcClient.Call(nil, "evm_revert", hardhatSnapshotName)
+	err := m.hardhatRpcClient.Call(nil, "evm_revert", hardhatSnapshotName)
 	if err != nil {
 		return fmt.Errorf("error reverting Hardhat to snapshot %s: %w", snapshotName, err)
 	}
+	// Take a snapshot of Hardhat again because hardhat deletes reverted snapshots
+	err = m.hardhatRpcClient.Call(&hardhatSnapshotName, "evm_snapshot")
+	if err != nil {
+		return fmt.Errorf("error regenerating snapshot of Hardhat after revert: Hardhat deletes reverted snapshots. %w", err)
+	}
+	m.hardhatSnapshotMap[snapshotName] = hardhatSnapshotName
 
 	// Revert the BN
 	err = m.beaconMockManager.RevertToSnapshot(snapshotName)
