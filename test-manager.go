@@ -254,7 +254,7 @@ func (m *TestManager) CreateSnapshot() (string, error) {
 
 	// Take a snapshot of all registered modules
 	for _, module := range m.registeredModules {
-		state, err := module.TakeSnapshot()
+		state, err := module.TakeSnapshot(snapshotName)
 		if err != nil {
 			return "", fmt.Errorf("error taking snapshot for module %s: %w", module.GetName(), err)
 		}
@@ -282,6 +282,7 @@ func (m *TestManager) RevertToSnapshot(snapshotName string) error {
 	if err != nil {
 		return fmt.Errorf("error reverting Hardhat to snapshot %s: %w", snapshotName, err)
 	}
+
 	// Take a snapshot of Hardhat again because hardhat deletes reverted snapshots
 	err = m.hardhatRpcClient.Call(&hardhatSnapshotName, "evm_snapshot")
 	if err != nil {

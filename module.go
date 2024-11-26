@@ -4,6 +4,6 @@ package osha
 type IOshaModule interface {
 	GetName() string
 	Close() error
-	TakeSnapshot() (any, error)
+	TakeSnapshot(name any) (any, error)
 	RevertToSnapshot(moduleState any) error
 }
