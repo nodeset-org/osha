@@ -158,7 +158,7 @@ func NewTestManager() (*TestManager, error) {
 
 // Cleans up the test environment, including the testing folder that houses any generated files
 func (m *TestManager) Close() error {
-	err := m.RevertToSnapshot(m.baselineSnapshotID)
+	err := m.RevertSnapshot(m.baselineSnapshotID)
 	if err != nil {
 		return fmt.Errorf("error reverting to baseline snapshot: %w", err)
 	}
@@ -204,7 +204,7 @@ func (m *TestManager) GetTestDir() string {
 
 // Reverts the services to the baseline snapshot
 func (m *TestManager) RevertToBaseline() error {
-	err := m.RevertToSnapshot(m.baselineSnapshotID)
+	err := m.RevertSnapshot(m.baselineSnapshotID)
 	if err != nil {
 		return fmt.Errorf("error reverting to baseline snapshot: %w", err)
 	}
@@ -267,7 +267,7 @@ func (m *TestManager) CreateSnapshot() (string, error) {
 	return snapshotName, nil
 }
 
-func (m *TestManager) RevertToSnapshot(snapshotName string) error {
+func (m *TestManager) RevertSnapshot(snapshotName string) error {
 	snapshot, exists := m.snapshots[snapshotName]
 	if !exists {
 		return fmt.Errorf("snapshot %s does not exist", snapshotName)
