@@ -287,6 +287,7 @@ func (m *TestManager) RevertToSnapshot(snapshotName string) error {
 	if err != nil {
 		return fmt.Errorf("error regenerating snapshot of Hardhat after revert: Hardhat deletes reverted snapshots. %w", err)
 	}
+	m.hardhatSnapshotMap[snapshotName] = hardhatSnapshotName
 
 	// Revert the BN
 	err = m.beaconMockManager.RevertToSnapshot(snapshotName)
