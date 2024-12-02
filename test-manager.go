@@ -254,9 +254,9 @@ func (m *TestManager) CreateSnapshot() (string, error) {
 
 	// Take a snapshot of all registered modules
 	for _, module := range m.registeredModules {
-		state, err := module.TakeSnapshot(snapshotName)
+		state, err := module.TakeModuleSnapshot(snapshotName)
 		if err != nil {
-			return "", fmt.Errorf("error taking snapshot for module %s: %w", module.GetName(), err)
+			return "", fmt.Errorf("error taking snapshot for module %s: %w", module.GetModuleName(), err)
 		}
 		snapshot.states[module] = state
 	}
@@ -314,7 +314,7 @@ func (m *TestManager) RevertSnapshot(snapshotName string) error {
 		if !exists {
 			continue
 		}
-		err := module.RevertToSnapshot(moduleState)
+		err := module.RevertModuleToSnapshot(moduleState)
 		if err != nil {
 			return fmt.Errorf("error reverting the module to snapshot %s: %w", moduleState, err)
 		}
@@ -325,7 +325,7 @@ func (m *TestManager) RevertSnapshot(snapshotName string) error {
 
 // If a user registers a module with an existing name, it will be overwritten
 func (m *TestManager) RegisterModule(module IOshaModule) {
-	m.registeredModules[module.GetName()] = module
+	m.registeredModules[module.GetModuleName()] = module
 }
 
 // Returns a list of registered modules
