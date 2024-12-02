@@ -332,11 +332,8 @@ func (m *TestManager) RegisterModule(module IOshaModule) error {
 	if err != nil {
 		return fmt.Errorf("error taking baseline snapshot for module %s: %w", module.GetModuleName(), err)
 	}
-	m.snapshots[m.baselineSnapshotID] = Snapshot{
-		name:   m.baselineSnapshotID,
-		states: map[IOshaModule]any{module: state},
-	}
-
+	snapshot := m.snapshots[m.baselineSnapshotID]
+	snapshot.states[module] = state
 	return nil
 }
 
