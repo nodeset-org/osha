@@ -324,8 +324,20 @@ func (m *TestManager) RevertSnapshot(snapshotName string) error {
 }
 
 // If a user registers a module with an existing name, it will be overwritten
-func (m *TestManager) RegisterModule(module IOshaModule) {
+func (m *TestManager) RegisterModule(module IOshaModule) error {
 	m.registeredModules[module.GetModuleName()] = module
+
+	// Take a baseline snapshot of the module
+	state, err := module.TakeModuleSnapshot(m.baselineSnapshotID)
+	if err != nil {
+		return fmt.Errorf("error taking baseline snapshot for module %s: %w", module.GetModuleName(), err)
+	}
+	m.snapshots[m.baselineSnapshotID] = Snapshot{
+		name:   m.baselineSnapshotID,
+		states: map[IOshaModule]any{module: state},
+	}
+
+	return nil
 }
 
 // Returns a list of registered modules
