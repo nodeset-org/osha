@@ -227,7 +227,7 @@ func (m *TestManager) CreateSnapshot() (string, error) {
 	// Create a new snapshot
 	snapshot := Snapshot{
 		name:   snapshotName,
-		states: make(map[IOshaModule]string),
+		states: make(map[IOshaModule]any),
 	}
 	var hardhatSnapshotName string
 	// Take a snapshot of hardhat
@@ -254,7 +254,7 @@ func (m *TestManager) CreateSnapshot() (string, error) {
 
 	// Take a snapshot of all registered modules
 	for _, module := range m.registeredModules {
-		state, err := module.TakeModuleSnapshot(snapshotName)
+		state, err := module.TakeModuleSnapshot()
 		if err != nil {
 			return "", fmt.Errorf("error taking snapshot for module %s: %w", module.GetModuleName(), err)
 		}
@@ -328,7 +328,7 @@ func (m *TestManager) RegisterModule(module IOshaModule) error {
 	m.registeredModules[module.GetModuleName()] = module
 
 	// Take a baseline snapshot of the module
-	state, err := module.TakeModuleSnapshot(m.baselineSnapshotID)
+	state, err := module.TakeModuleSnapshot()
 	if err != nil {
 		return fmt.Errorf("error taking baseline snapshot for module %s: %w", module.GetModuleName(), err)
 	}
