@@ -227,7 +227,7 @@ func (m *TestManager) CreateSnapshot() (string, error) {
 	// Create a new snapshot
 	snapshot := Snapshot{
 		name:   snapshotName,
-		states: make(map[IOshaModule]any),
+		states: make(map[IOshaModule]string),
 	}
 	var hardhatSnapshotName string
 	// Take a snapshot of hardhat
