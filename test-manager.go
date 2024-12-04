@@ -170,22 +170,6 @@ func (m *TestManager) DependsOn(dependency func(*testing.T), snapshotName *strin
 	return nil
 }
 
-func (m *TestManager) CleanupDependsOn(dependency func(*testing.T), snapshotName *string, t *testing.T) error {
-	// Check if the snapshot exists
-	if snapshotName != nil && *snapshotName != "" {
-		// If the snapshot exists, revert to it (clean up)
-		err := m.RevertSnapshot(*snapshotName)
-		if err != nil {
-			return fmt.Errorf("error reverting to snapshot %s: %v", *snapshotName, err)
-		}
-		return nil
-	}
-
-	// If the snapshot doesn't exist, run the dependency test to create it
-	dependency(t)
-	return nil
-}
-
 // Cleans up the test environment, including the testing folder that houses any generated files
 func (m *TestManager) Close() error {
 	err := m.RevertSnapshot(m.baselineSnapshotID)
