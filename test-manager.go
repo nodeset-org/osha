@@ -160,14 +160,12 @@ func NewTestManager() (*TestManager, error) {
 // Manages test dependencies for running individual unit tests when previous snapshots are not available
 func (m *TestManager) DependsOn(dependency func(*testing.T), snapshotName *string, t *testing.T) error {
 	if snapshotName != nil && *snapshotName != "" {
-		t.Log("!!! SNAPSHOT EXISTS !!!")
 		err := m.RevertSnapshot(*snapshotName)
 		if err != nil {
 			return fmt.Errorf("error reverting to snapshot %s: %v", *snapshotName, err)
 		}
 		return nil
 	}
-	t.Log("!!! SNAPSHOT DOES NOT EXIST !!!")
 	dependency(t)
 	return nil
 }
