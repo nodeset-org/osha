@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -154,6 +155,19 @@ func NewTestManager() (*TestManager, error) {
 
 	// Return
 	return m, nil
+}
+
+// Manages test dependencies for running individual unit tests when previous snapshots are not available
+func (m *TestManager) DependsOn(dependency func(*testing.T), snapshotName *string, t *testing.T) error {
+	if snapshotName != nil && *snapshotName != "" {
+		err := m.RevertSnapshot(*snapshotName)
+		if err != nil {
+			return fmt.Errorf("error reverting to snapshot %s: %v", *snapshotName, err)
+		}
+		return nil
+	}
+	dependency(t)
+	return nil
 }
 
 // Cleans up the test environment, including the testing folder that houses any generated files
