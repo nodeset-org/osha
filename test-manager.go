@@ -167,7 +167,15 @@ func (m *TestManager) DependsOn(dependency func(*testing.T), snapshotName *strin
 		return nil
 	}
 	dependency(t)
-	return nil
+	if snapshotName != nil && *snapshotName != "" {
+		err := m.RevertSnapshot(*snapshotName)
+		if err != nil {
+			return fmt.Errorf("error reverting to snapshot %s after test: %v", *snapshotName, err)
+		}
+		return nil
+	}
+
+	return fmt.Errorf("error reverting to snapshot %s after test", *snapshotName)
 }
 
 // Cleans up the test environment, including the testing folder that houses any generated files
