@@ -338,9 +338,8 @@ func (m *TestManager) RevertSnapshot(snapshotName string) error {
 }
 
 // If a user registers a module with an existing name, it will be overwritten
-func (m *TestManager) RegisterModule(module IOshaModule) error {
+func (m *TestManager) RegisterModule(module IOshaModule) {
 	m.registeredModules[module.GetModuleName()] = module
-	return nil
 }
 
 // Returns a list of registered modules
