@@ -1,7 +1,7 @@
 version: '3'
 services:
-  mock-eth-bn:
-    image: threevl/mock-eth-bn:0.0.2
+  osha:
+    image: nodeset/osha:0.0.1
     build:
       context: .
       dockerfile: ./beacon/Dockerfile
