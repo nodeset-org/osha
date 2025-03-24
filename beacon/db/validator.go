@@ -56,6 +56,10 @@ func (v *Validator) SetStatus(status beacon.ValidatorState) {
 	v.Status = status
 }
 
+func (v *Validator) SetActivationEpoch(epoch uint64) {
+	v.ActivationEpoch = epoch
+}
+
 func (v *Validator) Slash(penaltyGwei uint64) error {
 	if v.Status != beacon.ValidatorState_ActiveOngoing && v.Status != beacon.ValidatorState_ActiveExiting {
 		return fmt.Errorf("validator with pubkey %s is not in a slashable state", v.Pubkey.HexWithPrefix())

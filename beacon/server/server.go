@@ -182,6 +182,14 @@ func (s *BeaconMockServer) registerAdminRoutes(adminRouter *mux.Router) {
 			handleInvalidMethod(s.logger, w)
 		}
 	})
+	adminRouter.HandleFunc("/"+api.SetActivationEpochRoute, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.setActivationEpoch(w, r)
+		default:
+			handleInvalidMethod(s.logger, w)
+		}
+	})
 	adminRouter.HandleFunc("/"+api.SlashRoute, func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:

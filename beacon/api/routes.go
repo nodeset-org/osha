@@ -16,10 +16,11 @@ const (
 	FinalityCheckpointsRoute string = "v1/beacon/states/{state_id}/finality_checkpoints"
 
 	// Admin routes
-	AddValidatorRoute   string = "add-validator"
-	CommitBlockRoute    string = "commit-block"
-	SetBalanceRoute     string = "set-balance"
-	SetStatusRoute      string = "set-status"
-	SetHighestSlotRoute string = "set-highest-slot"
-	SlashRoute          string = "slash"
+	AddValidatorRoute       string = "add-validator"
+	CommitBlockRoute        string = "commit-block"
+	SetBalanceRoute         string = "set-balance"
+	SetStatusRoute          string = "set-status"
+	SetActivationEpochRoute string = "set-activation-epoch"
+	SetHighestSlotRoute     string = "set-highest-slot"
+	SlashRoute              string = "slash"
 )
