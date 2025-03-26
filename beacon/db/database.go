@@ -15,7 +15,7 @@ type Database struct {
 	validators []*Validator
 
 	// Lookup of validators by pubkey
-	validatorPubkeyMap map[beacon.ValidatorPubkey]*Validator
+	validatorPubkeyMap map[string]*Validator
 
 	// Map of slot indices to execution block indices
 	executionBlockMap map[uint64]uint64
@@ -42,7 +42,7 @@ func NewDatabase(logger *slog.Logger, firstExecutionBlockIndex uint64) *Database
 		lock:                    &sync.Mutex{},
 		nextExecutionBlockIndex: firstExecutionBlockIndex,
 		validators:              []*Validator{},
-		validatorPubkeyMap:      make(map[beacon.ValidatorPubkey]*Validator),
+		validatorPubkeyMap:      make(map[string]*Validator),
 		executionBlockMap:       make(map[uint64]uint64),
 		slots:                   make(map[uint64]*Slot),
 		slotBlockRootMap:        make(map[common.Hash]*Slot),
@@ -54,14 +54,14 @@ func (db *Database) AddValidator(pubkey beacon.ValidatorPubkey, withdrawalCreden
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	if _, exists := db.validatorPubkeyMap[pubkey]; exists {
+	if _, exists := db.validatorPubkeyMap[pubkey.Hex()]; exists {
 		return nil, fmt.Errorf("validator with pubkey %s already exists", pubkey.HexWithPrefix())
 	}
 
 	index := len(db.validators)
 	validator := NewValidator(pubkey, withdrawalCredentials, uint64(index))
 	db.validators = append(db.validators, validator)
-	db.validatorPubkeyMap[pubkey] = validator
+	db.validatorPubkeyMap[pubkey.Hex()] = validator
 	return validator, nil
 }
 
@@ -122,7 +122,7 @@ func (db *Database) GetValidatorByPubkey(pubkey beacon.ValidatorPubkey) *Validat
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	return db.validatorPubkeyMap[pubkey]
+	return db.validatorPubkeyMap[pubkey.Hex()]
 }
 
 // Get a slot by its index. Returns nil if it doesn't exist.
@@ -215,7 +215,7 @@ func (db *Database) Clone() *Database {
 	for i, validator := range db.validators {
 		cloneValidator := validator.Clone()
 		cloneValidators[i] = cloneValidator
-		clone.validatorPubkeyMap[validator.Pubkey] = cloneValidator
+		clone.validatorPubkeyMap[validator.Pubkey.Hex()] = cloneValidator
 	}
 	clone.validators = cloneValidators
 
