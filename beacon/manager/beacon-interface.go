@@ -2,6 +2,7 @@ package manager
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/rocket-pool/node-manager-core/beacon/client"
 	"github.com/rocket-pool/node-manager-core/utils"
@@ -22,6 +23,27 @@ func (m *BeaconMockManager) Beacon_Genesis(ctx context.Context) (client.GenesisR
 	response.Data.GenesisValidatorsRoot = m.config.GenesisValidatorsRoot
 	response.Data.GenesisForkVersion = m.config.GenesisForkVersion
 	return response, nil
+}
+
+func (m *BeaconMockManager) Beacon_Header(ctx context.Context, slot string) (client.BeaconBlockHeaderResponse, bool, error) {
+
+	response := client.BeaconBlockHeaderResponse{}
+
+	slotUint64, err := strconv.ParseUint(slot, 10, 64)
+	if err != nil {
+		return response, false, err
+	}
+
+	currentSlot := m.database.GetCurrentSlot()
+
+	// Get the block header
+	response.Finalized = slotUint64 <= currentSlot
+	response.Data.Canonical = true
+	response.Data.Header.Message.Slot = utils.Uinteger(slotUint64)
+	response.Data.Header.Message.ProposerIndex = "0"
+	response.Data.Root = m.database.GetSlotBlockRoot(slotUint64).Hex()
+
+	return response, true, nil
 }
 
 func (m *BeaconMockManager) Beacon_Validators(ctx context.Context, stateId string, ids []string) (client.ValidatorsResponse, error) {

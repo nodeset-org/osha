@@ -20,6 +20,9 @@ type Database struct {
 	// Map of slot indices to execution block indices
 	executionBlockMap map[uint64]uint64
 
+	// Map of slot indices to consensus block roots
+	consensusBlockRootMap map[uint64]common.Hash
+
 	// Current slot
 	currentSlot uint64
 
@@ -41,6 +44,7 @@ func NewDatabase(logger *slog.Logger, firstExecutionBlockIndex uint64) *Database
 		validators:              []*Validator{},
 		validatorPubkeyMap:      make(map[beacon.ValidatorPubkey]*Validator),
 		executionBlockMap:       make(map[uint64]uint64),
+		consensusBlockRootMap:   make(map[uint64]common.Hash),
 	}
 }
 
@@ -58,6 +62,27 @@ func (db *Database) AddValidator(pubkey beacon.ValidatorPubkey, withdrawalCreden
 	db.validators = append(db.validators, validator)
 	db.validatorPubkeyMap[pubkey] = validator
 	return validator, nil
+}
+
+// Add a new block header to the database. Returns an error if the block header already exists.
+func (db *Database) SetSlotBlockRoot(slot uint64, root common.Hash) (bool, error) {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	if _, exists := db.consensusBlockRootMap[slot]; exists {
+		return false, fmt.Errorf("block header for slot %d already exists", slot)
+	}
+
+	db.consensusBlockRootMap[slot] = root
+
+	return true, nil
+}
+
+func (db *Database) GetSlotBlockRoot(slot uint64) common.Hash {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	return db.consensusBlockRootMap[slot]
 }
 
 // Get a validator by its index. Returns nil if it doesn't exist.

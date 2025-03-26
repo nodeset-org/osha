@@ -88,6 +88,15 @@ func (m *BeaconMockManager) AddValidator(pubkey beacon.ValidatorPubkey, withdraw
 	return m.database.AddValidator(pubkey, withdrawalCredentials)
 }
 
+// Add a block header to the Beacon chain
+func (m *BeaconMockManager) SetSlotBlockRoot(slot uint64, root common.Hash) (bool, error) {
+	return m.database.SetSlotBlockRoot(slot, root)
+}
+
+func (m *BeaconMockManager) GetSlotBlockRoot(slot uint64) common.Hash {
+	return m.database.GetSlotBlockRoot(slot)
+}
+
 // Gets a validator by its index or pubkey
 func (m *BeaconMockManager) GetValidator(id string) (*db.Validator, error) {
 	if len(id) == beacon.ValidatorPubkeyLength*2 || strings.HasPrefix(id, "0x") {
