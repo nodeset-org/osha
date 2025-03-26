@@ -31,15 +31,17 @@ func TestSetSlotBlockRoot(t *testing.T) {
 
 	response := getBeaconHeadersResponse(t, "0")
 
-	require.Equal(t, response.Data.Root, test.UnsetBlockRootString)
+	require.Equal(t, response.Data.Root, test.BlockRootString)
+
+	newSlotBlockRoot := common.HexToHash("0x2234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")
 
 	// Send the set balance request
-	getSetSlotBlockRootResponse(t, 0, common.HexToHash(test.BlockRootString))
+	getSetSlotBlockRootResponse(t, 0, newSlotBlockRoot)
 
 	response = getBeaconHeadersResponse(t, "0")
 
-	require.Equal(t, response.Data.Root, test.BlockRootString)
-	t.Logf("Received correct response - slot: %s, data root: %s", "0", test.BlockRootString)
+	require.Equal(t, response.Data.Root, newSlotBlockRoot.String())
+	t.Logf("Received correct response - slot: %s block root transition from %s to %s", "0", test.BlockRootString, newSlotBlockRoot.String())
 
 }
 
