@@ -31,4 +31,5 @@ const (
 	SetActivationEpochRoute          string = "set-activation-epoch"
 	SetHighestSlotRoute              string = "set-highest-slot"
 	SlashRoute                       string = "slash"
+	ResetRoute                       string = "reset"
 )

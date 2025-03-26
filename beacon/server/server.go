@@ -238,6 +238,14 @@ func (s *BeaconMockServer) registerAdminRoutes(adminRouter *mux.Router) {
 			handleInvalidMethod(s.logger, w)
 		}
 	})
+	adminRouter.HandleFunc("/"+api.ResetRoute, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.reset(w, r)
+		default:
+			handleInvalidMethod(s.logger, w)
+		}
+	})
 }
 
 // =============
