@@ -20,8 +20,8 @@ type Database struct {
 	// Map of slot indices to execution block indices
 	executionBlockMap map[uint64]uint64
 
-	// Map of slot indices to consensus block roots
-	consensusBlockRootMap map[uint64]common.Hash
+	slots            map[uint64]*Slot
+	slotBlockRootMap map[common.Hash]*Slot
 
 	// Current slot
 	currentSlot uint64
@@ -44,7 +44,8 @@ func NewDatabase(logger *slog.Logger, firstExecutionBlockIndex uint64) *Database
 		validators:              []*Validator{},
 		validatorPubkeyMap:      make(map[beacon.ValidatorPubkey]*Validator),
 		executionBlockMap:       make(map[uint64]uint64),
-		consensusBlockRootMap:   make(map[uint64]common.Hash),
+		slots:                   make(map[uint64]*Slot),
+		slotBlockRootMap:        make(map[common.Hash]*Slot),
 	}
 }
 
@@ -64,25 +65,43 @@ func (db *Database) AddValidator(pubkey beacon.ValidatorPubkey, withdrawalCreden
 	return validator, nil
 }
 
-// Add a new block header to the database. Returns an error if the block header already exists.
+// Add a new slot block header to the database or updates an existing slot if it already exists
 func (db *Database) SetSlotBlockRoot(slot uint64, root common.Hash) (bool, error) {
+
+	foundSlot := db.GetSlotByIndex(slot)
+
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	if _, exists := db.consensusBlockRootMap[slot]; exists {
-		return false, fmt.Errorf("block header for slot %d already exists", slot)
+	if foundSlot == nil {
+		newSlot := NewSlot(slot, root, 0)
+		db.slots[slot] = newSlot
+		db.slotBlockRootMap[root] = newSlot
+	} else {
+		foundSlot.BlockRoot = root
+		delete(db.slotBlockRootMap, foundSlot.BlockRoot)
+		db.slotBlockRootMap[root] = foundSlot
 	}
-
-	db.consensusBlockRootMap[slot] = root
 
 	return true, nil
 }
 
-func (db *Database) GetSlotBlockRoot(slot uint64) common.Hash {
+// Add a new slot exeuction block number to the database or updates an existing slot if it already exists
+func (db *Database) SetSlotExecutionBlockNumber(slot uint64, blockNumber uint64) (bool, error) {
+
+	foundSlot := db.GetSlotByIndex(slot)
+
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	return db.consensusBlockRootMap[slot]
+	if foundSlot == nil {
+		newSlot := NewSlot(slot, common.HexToHash("0x00"), blockNumber)
+		db.slots[slot] = newSlot
+	} else {
+		foundSlot.ExecutionBlockNumber = blockNumber
+	}
+
+	return true, nil
 }
 
 // Get a validator by its index. Returns nil if it doesn't exist.
@@ -104,6 +123,32 @@ func (db *Database) GetValidatorByPubkey(pubkey beacon.ValidatorPubkey) *Validat
 	defer db.lock.Unlock()
 
 	return db.validatorPubkeyMap[pubkey]
+}
+
+// Get a slot by its index. Returns nil if it doesn't exist.
+func (db *Database) GetSlotByIndex(index uint64) *Slot {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	slot, exists := db.slots[index]
+	if !exists {
+		return nil
+	}
+
+	return slot
+}
+
+// Get a slot by its block root. Returns nil if it doesn't exist.
+func (db *Database) GetSlotByBlockRoot(blockRoot common.Hash) *Slot {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	slot, exists := db.slotBlockRootMap[blockRoot]
+	if !exists {
+		return nil
+	}
+
+	return slot
 }
 
 // Get all validators

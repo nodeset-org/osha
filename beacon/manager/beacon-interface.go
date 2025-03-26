@@ -2,8 +2,8 @@ package manager
 
 import (
 	"context"
-	"strconv"
 
+	"github.com/nodeset-org/osha/beacon/api"
 	"github.com/rocket-pool/node-manager-core/beacon/client"
 	"github.com/rocket-pool/node-manager-core/utils"
 )
@@ -25,23 +25,42 @@ func (m *BeaconMockManager) Beacon_Genesis(ctx context.Context) (client.GenesisR
 	return response, nil
 }
 
-func (m *BeaconMockManager) Beacon_Header(ctx context.Context, slot string) (client.BeaconBlockHeaderResponse, bool, error) {
+func (m *BeaconMockManager) Beacon_Header(ctx context.Context, slot_index string) (client.BeaconBlockHeaderResponse, bool, error) {
 
 	response := client.BeaconBlockHeaderResponse{}
 
-	slotUint64, err := strconv.ParseUint(slot, 10, 64)
-	if err != nil {
-		return response, false, err
-	}
-
 	currentSlot := m.database.GetCurrentSlot()
 
+	slot := m.GetSlot(slot_index)
+
 	// Get the block header
-	response.Finalized = slotUint64 <= currentSlot
+	response.Finalized = slot.Index <= currentSlot
 	response.Data.Canonical = true
-	response.Data.Header.Message.Slot = utils.Uinteger(slotUint64)
+	response.Data.Header.Message.Slot = utils.Uinteger(slot.Index)
 	response.Data.Header.Message.ProposerIndex = "0"
-	response.Data.Root = m.database.GetSlotBlockRoot(slotUint64).Hex()
+	response.Data.Root = slot.BlockRoot.Hex()
+
+	return response, true, nil
+}
+
+func (m *BeaconMockManager) Blinded_Block(ctx context.Context, block_id string) (api.BlindedBlockResponse, bool, error) {
+
+	slot := m.GetSlot(block_id)
+
+	if slot == nil {
+		return api.BlindedBlockResponse{}, false, nil
+	}
+
+	response := api.BlindedBlockResponse{}
+
+	response.Data.Message.ProposerIndex = "0"
+	response.Data.Message.Slot = utils.Uinteger(slot.Index)
+	response.Data.Message.Body.Eth1Data.DepositRoot = []byte{0x00}
+	response.Data.Message.Body.Eth1Data.DepositCount = utils.Uinteger(0)
+	response.Data.Message.Body.Eth1Data.BlockHash = []byte{0x00}
+	response.Data.Message.Body.Attestations = []client.Attestation{}
+	response.Data.Message.Body.ExecutionPayloadHeader.BlockNumber = utils.Uinteger(slot.ExecutionBlockNumber)
+	response.Data.Message.Body.ExecutionPayloadHeader.FeeRecipient = []byte{0x00}
 
 	return response, true, nil
 }

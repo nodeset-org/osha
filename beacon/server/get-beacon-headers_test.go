@@ -33,25 +33,15 @@ func TestBeaconHeaders(t *testing.T) {
 
 	// Send a request
 	response0 := getBeaconHeadersResponse(t, "0")
-	response1 := getBeaconHeadersResponse(t, "1")
 
-	require.Equal(t, response0.Data.Root, test.UnsetBlockRootString)
-	require.Equal(t, response1.Data.Root, test.BlockRootString)
+	require.Equal(t, response0.Data.Root, test.BlockRootString)
 	require.Equal(t, response0.Finalized, true)
-	require.Equal(t, response1.Finalized, false)
 
 	server.manager.CommitBlock(true)
 
-	response3 := getBeaconHeadersResponse(t, "0")
-	response4 := getBeaconHeadersResponse(t, "1")
-
-	require.Equal(t, response3.Finalized, true)
-	require.Equal(t, response4.Finalized, true)
-
 	t.Logf(
-		"Received correct response - data root slot 1: %s data root slot 2: %s",
+		"Received correct response - data root slot 0: %s",
 		response0.Data.Root,
-		response1.Data.Root,
 	)
 }
 

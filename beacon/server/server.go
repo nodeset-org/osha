@@ -138,6 +138,14 @@ func (s *BeaconMockServer) registerApiRoutes(apiRouter *mux.Router) {
 			handleInvalidMethod(s.logger, w)
 		}
 	})
+	apiRouter.HandleFunc("/"+api.BlindedBlocksRoute, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.getBlindedBlocks(w, r)
+		default:
+			handleInvalidMethod(s.logger, w)
+		}
+	})
 	apiRouter.HandleFunc("/"+api.ConfigSpecRoute, func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
@@ -170,6 +178,14 @@ func (s *BeaconMockServer) registerAdminRoutes(adminRouter *mux.Router) {
 		switch r.Method {
 		case http.MethodGet:
 			s.setSlotBlockRoot(w, r)
+		default:
+			handleInvalidMethod(s.logger, w)
+		}
+	})
+	adminRouter.HandleFunc("/"+api.SetSlotExecutionBlockNumberRoute, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.setSlotExecutionBlockNumber(w, r)
 		default:
 			handleInvalidMethod(s.logger, w)
 		}

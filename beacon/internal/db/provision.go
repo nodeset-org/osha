@@ -52,10 +52,10 @@ func ProvisionDatabaseForTesting(t *testing.T, logger *slog.Logger) *db.Database
 	require.NotSame(t, v1, v2)
 	t.Log("Added validators to database")
 
-	b1, _ := d.SetSlotBlockRoot(1, common.HexToHash(test.BlockRootString))
+	d.SetSlotBlockRoot(0, common.HexToHash(test.BlockRootString))
+	d.SetSlotExecutionBlockNumber(0, test.ExecutionBlockNumber)
 
-	require.Equal(t, b1, true)
-	t.Log("Set block root for slot 1")
+	t.Log("Set up initial slot")
 
 	return d
 }

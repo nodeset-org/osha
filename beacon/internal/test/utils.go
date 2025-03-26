@@ -9,4 +9,5 @@ const (
 	WithdrawalCredentials2String string = "0xc12ed52eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 	UnsetBlockRootString         string = "0x0000000000000000000000000000000000000000000000000000000000000000"
 	BlockRootString              string = "0x2234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	ExecutionBlockNumber         uint64 = 66
 )
