@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/nodeset-org/osha/beacon/api"
 )
 
@@ -12,8 +13,16 @@ import (
 func (s *BeaconMockServer) getBeaconHeaders(w http.ResponseWriter, r *http.Request) {
 	// Get the request vars
 	args := s.processApiRequest(w, r, nil)
+	vars := mux.Vars(r)
 
 	slot, exists := args[api.Slot]
+
+	if !exists {
+		slotVar, existsVar := vars[api.BlockID]
+		exists = existsVar
+		slot = []string{slotVar}
+	}
+
 	if !exists {
 		handleInputError(s.logger, w, fmt.Errorf("missing slot"))
 		return
