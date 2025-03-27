@@ -217,10 +217,23 @@ func (db *Database) Clone() *Database {
 		cloneValidators[i] = cloneValidator
 		clone.validatorPubkeyMap[validator.Pubkey.Hex()] = cloneValidator
 	}
+
 	clone.validators = cloneValidators
 
 	for slot, block := range db.executionBlockMap {
 		clone.executionBlockMap[slot] = block
 	}
+
+	cloneSlots := make(map[uint64]*Slot)
+	cloneSlotBlockRootMap := make(map[common.Hash]*Slot)
+
+	for index, slot := range db.slots {
+		cloneSlot := slot.Clone()
+		cloneSlots[index] = cloneSlot
+		cloneSlotBlockRootMap[cloneSlot.BlockRoot] = cloneSlot
+	}
+
+	clone.slots = cloneSlots
+	clone.slotBlockRootMap = cloneSlotBlockRootMap
 	return clone
 }
