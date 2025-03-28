@@ -33,7 +33,7 @@ type BlindedBlockResponse struct {
 				ExecutionPayloadHeader struct {
 					FeeRecipient utils.ByteArray `json:"fee_recipient"`
 					BlockNumber  utils.Uinteger  `json:"block_number"`
-				} `json:"execution_payload"`
+				} `json:"execution_payload_header"`
 			} `json:"body"`
 		} `json:"message"`
 	} `json:"data"`
