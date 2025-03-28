@@ -44,11 +44,18 @@ func ProvisionDatabaseForTesting(t *testing.T, logger *slog.Logger) *db.Database
 	if err != nil {
 		t.Fatalf("Error adding validator [%s]: %v", pubkey1.HexWithPrefix(), err)
 	}
+
 	require.Same(t, v0, d.GetValidatorByIndex(0))
 	require.Same(t, v1, d.GetValidatorByIndex(1))
 	require.Same(t, v2, d.GetValidatorByIndex(2))
 	require.NotSame(t, v0, v1)
 	require.NotSame(t, v1, v2)
 	t.Log("Added validators to database")
+
+	d.SetSlotBlockRoot(0, common.HexToHash(test.BlockRootString))
+	d.SetSlotExecutionBlockNumber(0, test.ExecutionBlockNumber)
+
+	t.Log("Set up initial slot")
+
 	return d
 }

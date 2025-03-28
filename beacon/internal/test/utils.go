@@ -7,4 +7,6 @@ const (
 	Pubkey3String                string = "0xbeac0903bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 	WithdrawalCredentialsString  string = "0xc12ed5eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 	WithdrawalCredentials2String string = "0xc12ed52eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	BlockRootString              string = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+	ExecutionBlockNumber         uint64 = 66
 )

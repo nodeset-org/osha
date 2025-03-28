@@ -15,10 +15,13 @@ type Database struct {
 	validators []*Validator
 
 	// Lookup of validators by pubkey
-	validatorPubkeyMap map[beacon.ValidatorPubkey]*Validator
+	validatorPubkeyMap map[string]*Validator
 
 	// Map of slot indices to execution block indices
 	executionBlockMap map[uint64]uint64
+
+	slots            map[uint64]*Slot
+	slotBlockRootMap map[common.Hash]*Slot
 
 	// Current slot
 	currentSlot uint64
@@ -39,8 +42,10 @@ func NewDatabase(logger *slog.Logger, firstExecutionBlockIndex uint64) *Database
 		lock:                    &sync.Mutex{},
 		nextExecutionBlockIndex: firstExecutionBlockIndex,
 		validators:              []*Validator{},
-		validatorPubkeyMap:      make(map[beacon.ValidatorPubkey]*Validator),
+		validatorPubkeyMap:      make(map[string]*Validator),
 		executionBlockMap:       make(map[uint64]uint64),
+		slots:                   make(map[uint64]*Slot),
+		slotBlockRootMap:        make(map[common.Hash]*Slot),
 	}
 }
 
@@ -49,15 +54,54 @@ func (db *Database) AddValidator(pubkey beacon.ValidatorPubkey, withdrawalCreden
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	if _, exists := db.validatorPubkeyMap[pubkey]; exists {
+	if _, exists := db.validatorPubkeyMap[pubkey.Hex()]; exists {
 		return nil, fmt.Errorf("validator with pubkey %s already exists", pubkey.HexWithPrefix())
 	}
 
 	index := len(db.validators)
 	validator := NewValidator(pubkey, withdrawalCredentials, uint64(index))
 	db.validators = append(db.validators, validator)
-	db.validatorPubkeyMap[pubkey] = validator
+	db.validatorPubkeyMap[pubkey.Hex()] = validator
 	return validator, nil
+}
+
+// Add a new slot block header to the database or updates an existing slot if it already exists
+func (db *Database) SetSlotBlockRoot(slot uint64, root common.Hash) (bool, error) {
+
+	foundSlot := db.GetSlotByIndex(slot)
+
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	if foundSlot == nil {
+		newSlot := NewSlot(slot, root, 0)
+		db.slots[slot] = newSlot
+		db.slotBlockRootMap[root] = newSlot
+	} else {
+		foundSlot.BlockRoot = root
+		delete(db.slotBlockRootMap, foundSlot.BlockRoot)
+		db.slotBlockRootMap[root] = foundSlot
+	}
+
+	return true, nil
+}
+
+// Add a new slot exeuction block number to the database or updates an existing slot if it already exists
+func (db *Database) SetSlotExecutionBlockNumber(slot uint64, blockNumber uint64) (bool, error) {
+
+	foundSlot := db.GetSlotByIndex(slot)
+
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	if foundSlot == nil {
+		newSlot := NewSlot(slot, common.HexToHash("0x00"), blockNumber)
+		db.slots[slot] = newSlot
+	} else {
+		foundSlot.ExecutionBlockNumber = blockNumber
+	}
+
+	return true, nil
 }
 
 // Get a validator by its index. Returns nil if it doesn't exist.
@@ -78,7 +122,33 @@ func (db *Database) GetValidatorByPubkey(pubkey beacon.ValidatorPubkey) *Validat
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
-	return db.validatorPubkeyMap[pubkey]
+	return db.validatorPubkeyMap[pubkey.Hex()]
+}
+
+// Get a slot by its index. Returns nil if it doesn't exist.
+func (db *Database) GetSlotByIndex(index uint64) *Slot {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	slot, exists := db.slots[index]
+	if !exists {
+		return nil
+	}
+
+	return slot
+}
+
+// Get a slot by its block root. Returns nil if it doesn't exist.
+func (db *Database) GetSlotByBlockRoot(blockRoot common.Hash) *Slot {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	slot, exists := db.slotBlockRootMap[blockRoot]
+	if !exists {
+		return nil
+	}
+
+	return slot
 }
 
 // Get all validators
@@ -145,12 +215,25 @@ func (db *Database) Clone() *Database {
 	for i, validator := range db.validators {
 		cloneValidator := validator.Clone()
 		cloneValidators[i] = cloneValidator
-		clone.validatorPubkeyMap[validator.Pubkey] = cloneValidator
+		clone.validatorPubkeyMap[validator.Pubkey.Hex()] = cloneValidator
 	}
+
 	clone.validators = cloneValidators
 
 	for slot, block := range db.executionBlockMap {
 		clone.executionBlockMap[slot] = block
 	}
+
+	cloneSlots := make(map[uint64]*Slot)
+	cloneSlotBlockRootMap := make(map[common.Hash]*Slot)
+
+	for index, slot := range db.slots {
+		cloneSlot := slot.Clone()
+		cloneSlots[index] = cloneSlot
+		cloneSlotBlockRootMap[cloneSlot.BlockRoot] = cloneSlot
+	}
+
+	clone.slots = cloneSlots
+	clone.slotBlockRootMap = cloneSlotBlockRootMap
 	return clone
 }

@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	DefaultChainID                      uint64 = 0x90de5e7
+	DefaultChainID                      uint64 = 31337
 	DefaultDepositContractAddressString string = "0xde905175eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 )
 
