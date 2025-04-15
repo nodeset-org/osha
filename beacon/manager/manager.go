@@ -51,7 +51,7 @@ func (m *BeaconMockManager) RevertToSnapshot(name string) error {
 	if !exists {
 		return fmt.Errorf("snapshot with name [%s] does not exist", name)
 	}
-	m.database = snapshot
+	m.database = snapshot.Clone()
 	m.logger.Info("Reverted to DB snapshot", "name", name)
 	return nil
 }
