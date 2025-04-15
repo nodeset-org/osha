@@ -123,3 +123,8 @@ func (m *BeaconMockManager) GetValidators(ids []string) ([]*db.Validator, error)
 	}
 	return validators, nil
 }
+
+// Get the pending deposits from the Beacon chain
+func (m *BeaconMockManager) GetPendingDeposits() []*db.Deposit {
+	return m.database.GetPendingDeposits()
+}
