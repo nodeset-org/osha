@@ -128,3 +128,13 @@ func (m *BeaconMockManager) GetValidators(ids []string) ([]*db.Validator, error)
 func (m *BeaconMockManager) GetPendingDeposits() []*db.Deposit {
 	return m.database.GetPendingDeposits()
 }
+
+// Add a pending deposit to the Beacon chain
+func (m *BeaconMockManager) AddPendingDeposit(deposit *db.Deposit) {
+	m.database.AddPendingDeposit(deposit)
+}
+
+// Remove a pending deposit from the Beacon chain
+func (m *BeaconMockManager) RemovePendingDeposit(deposit *db.Deposit) {
+	m.database.RemovePendingDeposit(deposit)
+}
