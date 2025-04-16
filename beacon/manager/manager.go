@@ -51,7 +51,7 @@ func (m *BeaconMockManager) RevertToSnapshot(name string) error {
 	if !exists {
 		return fmt.Errorf("snapshot with name [%s] does not exist", name)
 	}
-	m.database = snapshot
+	m.database = snapshot.Clone()
 	m.logger.Info("Reverted to DB snapshot", "name", name)
 	return nil
 }
@@ -122,4 +122,19 @@ func (m *BeaconMockManager) GetValidators(ids []string) ([]*db.Validator, error)
 		validators = append(validators, validator)
 	}
 	return validators, nil
+}
+
+// Get the pending deposits from the Beacon chain
+func (m *BeaconMockManager) GetPendingDeposits() []*db.Deposit {
+	return m.database.GetPendingDeposits()
+}
+
+// Add a pending deposit to the Beacon chain
+func (m *BeaconMockManager) AddPendingDeposit(deposit *db.Deposit) {
+	m.database.AddPendingDeposit(deposit)
+}
+
+// Remove a pending deposit from the Beacon chain
+func (m *BeaconMockManager) RemovePendingDeposit(deposit *db.Deposit) {
+	m.database.RemovePendingDeposit(deposit)
 }

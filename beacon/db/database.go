@@ -14,6 +14,9 @@ type Database struct {
 	// Validators registered with the network
 	validators []*Validator
 
+	// Pending deposits
+	pendingDeposits []*Deposit
+
 	// Lookup of validators by pubkey
 	validatorPubkeyMap map[beacon.ValidatorPubkey]*Validator
 
@@ -103,6 +106,37 @@ func (db *Database) GetHighestSlot() uint64 {
 	defer db.lock.Unlock()
 
 	return db.highestSlot
+}
+
+// Add a new pending deposit to the database
+func (db *Database) AddPendingDeposit(deposit *Deposit) {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	db.pendingDeposits = append(db.pendingDeposits, deposit)
+}
+
+// Get all pending deposits
+func (db *Database) GetPendingDeposits() []*Deposit {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	return db.pendingDeposits
+}
+
+// Remove a pending deposit from the database
+func (db *Database) RemovePendingDeposit(deposit *Deposit) {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	newDeposits := make([]*Deposit, 0, len(db.pendingDeposits)-1)
+	for _, d := range db.pendingDeposits {
+		if d == deposit {
+			continue
+		}
+		newDeposits = append(newDeposits, d)
+	}
+	db.pendingDeposits = newDeposits
 }
 
 // Add a new block to the chain.

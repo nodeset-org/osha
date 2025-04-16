@@ -146,6 +146,14 @@ func (s *BeaconMockServer) registerApiRoutes(apiRouter *mux.Router) {
 			handleInvalidMethod(s.logger, w)
 		}
 	})
+	apiRouter.HandleFunc("/"+api.PendingDepositsRoute, func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			s.getPendingDeposits(w, r)
+		default:
+			handleInvalidMethod(s.logger, w)
+		}
+	})
 }
 
 // Admin routes

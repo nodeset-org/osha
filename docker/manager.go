@@ -41,11 +41,15 @@ func (m *DockerMockManager) TakeSnapshot(name string) error {
 
 // Revert to a snapshot of the Docker mock state
 func (m *DockerMockManager) RevertToSnapshot(name string) error {
-	clone, exists := m.snapshots[name]
+	state, exists := m.snapshots[name]
 	if !exists {
 		return fmt.Errorf("snapshot with name [%s] does not exist", name)
 	}
-	m.state = clone
+	newState, err := state.Clone()
+	if err != nil {
+		return fmt.Errorf("error cloning snapshot: %w", err)
+	}
+	m.state = newState
 	m.logger.Info("Reverted to Docker snapshot", "name", name)
 	return nil
 }

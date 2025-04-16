@@ -42,6 +42,23 @@ func (m *BeaconMockManager) Beacon_Validators(ctx context.Context, stateId strin
 	return response, nil
 }
 
+func (m *BeaconMockManager) Beacon_PendingDeposits(ctx context.Context, stateID string) (client.PendingDepositsResponse, error) {
+	// Get the pending deposits
+	pendingDeposits := m.GetPendingDeposits()
+
+	// Convert the deposit data to the native format
+	nativeDeposits := make([]client.PendingDeposit, len(pendingDeposits))
+	for i, deposit := range pendingDeposits {
+		nativeDeposits[i] = deposit.ConvertToNativeFormat()
+	}
+
+	// Write the response
+	response := client.PendingDepositsResponse{
+		Data: nativeDeposits,
+	}
+	return response, nil
+}
+
 func (m *BeaconMockManager) Config_DepositContract(ctx context.Context) (client.Eth2DepositContractResponse, error) {
 	response := client.Eth2DepositContractResponse{}
 	response.Data.Address = m.config.DepositContract
